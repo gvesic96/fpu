@@ -34,24 +34,46 @@ use ieee.numeric_std.all;
 
 entity incr_decr is
     Generic ( WIDTH : positive := 32);
-    Port ( op1 : in STD_LOGIC_VECTOR(WIDTH-1 downto 0);
-           sel : in STD_LOGIC;
+    Port ( clk : in STD_LOGIC;
+           rst : in STD_LOGIC;
+           op1 : in STD_LOGIC_VECTOR(WIDTH-1 downto 0);
+           ctrl : in STD_LOGIC_VECTOR(1 downto 0);
+           
            result : out STD_LOGIC_VECTOR(WIDTH-1 downto 0)
            );
 end incr_decr;
 
 architecture Behavioral of incr_decr is
 
+    signal q_s : unsigned(WIDTH-1 downto 0);
+
 begin
 
-    increment_decrement_proc: process (sel, op1) is
+    increment_decrement_proc: process (clk, rst) is
     begin
-        if(sel = '0') then
-          result <= std_logic_vector(unsigned(op1)+1);
+        if(rst = '1') then
+          q_s <= (others => '0');
         else
-          result <= std_logic_vector(unsigned(op1)-1);
+          if(rising_edge(clk)) then
+            case ctrl is
+              when "00" =>
+                --hold
+                q_s <= q_s;
+              when "01" =>
+                --increment
+                q_s <= q_s + 1;
+              when "10" =>
+                --decrement
+                q_s <= q_s - 1;
+              when others =>
+                --load
+                q_s <= unsigned(op1);
+            end case;
+          end if;
         end if;
-    
+        
+        result <= std_logic_vector(q_s);
+        
     end process increment_decrement_proc;
 
 
