@@ -38,6 +38,7 @@ entity big_alu is
     Port ( op1 : in STD_LOGIC_VECTOR(WIDTH-1 downto 0);
            op2 : in STD_LOGIC_VECTOR(WIDTH-1 downto 0);
            sel : in STD_LOGIC;
+           en : in STD_LOGIC;
            
            result : out STD_LOGIC_VECTOR(WIDTH-1 downto 0));
 end big_alu;
@@ -48,7 +49,7 @@ begin
 
     alu: process (sel, op1, op2) is
     begin
-      
+      if(en = '1') then
         if(sel ='0') then
             
             result <= std_logic_vector(unsigned(op1) + unsigned(op2));
@@ -57,7 +58,9 @@ begin
             result <= std_logic_vector(unsigned(op1) + (not(unsigned(op2))+1));
         
         end if;
-        
+      else
+        result <= (others => '0');
+      end if;
       
     end process alu;
 
