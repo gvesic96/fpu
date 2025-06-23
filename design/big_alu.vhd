@@ -40,26 +40,36 @@ entity big_alu is
            sel : in STD_LOGIC;
            en : in STD_LOGIC;
            
+           carry : out STD_LOGIC; --ovaj carry cu omoguciti kasnije
            result : out STD_LOGIC_VECTOR(WIDTH-1 downto 0));
 end big_alu;
 
 architecture Behavioral of big_alu is
 
+    signal result_s: unsigned(WIDTH downto 0):= (others=>'0');  --uvodjenje ovog unutrasnjeg signala ce verovatno ubaciti latch kako bi memorisao stanje medjusignala?
+
 begin
 
     alu: process (sel, op1, op2) is
+    -- da li je enable signal neophodan u sensitivy listi?
     begin
       if(en = '1') then
         if(sel ='0') then
             
-            result <= std_logic_vector(unsigned(op1) + unsigned(op2));
+            --result <= std_logic_vector(unsigned(op1) + unsigned(op2));
+            result_s <= ('0' & unsigned(op1)) + ('0' & unsigned(op2));
+            
           else
             
-            result <= std_logic_vector(unsigned(op1) + (not(unsigned(op2))+1));
-        
+            --result <= std_logic_vector(unsigned(op1) + (not(unsigned(op2))+1));
+            result_s <= ('0' & (unsigned(op1)) + (not('0' & unsigned(op2)+1)));
+  
         end if;
+        result <= std_logic_vector(result_s(WIDTH-1 downto 0));
+        carry <= std_logic(result_s(WIDTH));
       else
         result <= (others => '0');
+        carry <= '0';
       end if;
       
     end process alu;
