@@ -36,15 +36,20 @@ entity control_path_add is
   Port (clk : in STD_LOGIC;
         rst : in STD_LOGIC;
         start : in STD_LOGIC;
-        ed_val : in STD_LOGIC_VECTOR(7 downto 0);
+        ed_val : in STD_LOGIC_VECTOR(8 downto 0); --9 bita jer je signed vrednost
         fraction_val : in STD_LOGIC_VECTOR(7 downto 0);
         big_alu_out : in STD_LOGIC_VECTOR(22 downto 0);
+        
+        small_alu_en : out STD_LOGIC; --enable signal za small ALU
+        ed_reg_en : out STD_LOGIC; --enable signal za registar koji prihvata izlas small ALUa
         
         
         shift_r_en : out STD_LOGIC;
         shift_r_ctrl : out STD_LOGIC_VECTOR(1 downto 0);
-        mux_exp_1 : out STD_LOGIC;
-        mux_exp_2 : out STD_LOGIC;
+        shift_r_d0 : out STD_LOGIC;
+        
+        mexp_1_sel : out STD_LOGIC;
+        mexp_2_sel : out STD_LOGIC;
         
         
         mux_exp_sel_top : out STD_LOGIC;
@@ -60,8 +65,10 @@ entity control_path_add is
 end control_path_add;
 
 architecture Behavioral of control_path_add is
-    type add_state_type is (IDLE, EXP_COMPARE, SHIFT_SMALLER, FRACTION_ADD, NORM, ROUND, READY_STATE);
+    type add_state_type is (IDLE, EXP_COMPARE_1, EXP_COMPARE_2, SHIFT_SMALLER, FRACTION_ADD, NORM, ROUND, READY_STATE);
     signal state_next, state_reg : add_state_type;
+    
+    signal count_s : unsigned (7 downto 0) := (others=>'0');
     
 begin
 
@@ -77,16 +84,29 @@ begin
     end process state_proc;
 
     control_proc: process(state_reg, start) is --za milijev automat treba dodati signale u sensitivity listu
+      variable count_v : unsigned (8 downto 0) := (others=>'0');
     begin
         case state_reg is
+          
           when IDLE =>
             if(start='1') then
-              state_next<=EXP_COMPARE;
+              state_next<=EXP_COMPARE_1;
+              small_alu_en <= '1';
+              ed_reg_en <= '1';
             else
               state_next<=IDLE;
             end if;
-          when EXP_COMPARE =>
+          
+          when EXP_COMPARE_1 =>
+            small_alu_en <= '0';
+            ed_reg_en <= '0'; --keep loaded value
+            state_next <= EXP_COMPARE_2;
+          
+          when EXP_COMPARE_2 =>
             if(unsigned(ed_val)=0) then
+              mexp_1_sel <= '0'; --pusti frakciju iz op1
+              mexp_2_sel <= '1'; --pusti frakciju iz op2
+              
               shift_r_en <= '1'; --enabluje shift registar i sa 11 se ucita vrednost u njega
               shift_r_ctrl <= "11"; --ucita vrednost u shift registar
               big_alu_en <= '1'; --enable big alu
@@ -98,14 +118,34 @@ begin
               
               state_next <= FRACTION_ADD;
             else
+              --OVDE ENABLUJE SHIFT_RIGHT REGISTAR I UCITA U NJEGA VREDNOST
               shift_r_en <= '1';
-              if(unsigned(ed_val)>0) then
+              shift_r_ctrl <= "11";
+              
+              if(ed_val(8)='0') then --exponent difference value je pozitivno 
+                --TREBA POREDITI SAMO MSB za 0 je vrednost ed_val pozitivna
+                mexp_1_sel <= '1'; --pusti frakciju iz op2 u shift_right registar jer je manji
+                mexp_2_sel <= '0'; --pusti frakciju iz op1 u shift_right registar
                 
+                count_s <= unsigned(ed_val(7 downto 0)); --sacuva se kao broj ciklusa koje ce biti pomerana vrednost u registru
+                
+                state_next <= SHIFT_SMALLER;
+              else
+                mexp_1_sel <= '0'; --pusti exp iz op1 u shift_right registar jer je manji
+                mexp_2_sel <= '1';
+                count_v := (not(unsigned(ed_val)))+1; --da negativnu vrednost prevede iz komplementa dvoje, DOBIJE APSOLUTNU VREDNOST RAZLIKE
+                count_s <= count_v(7 downto 0); --dodeli 8 bita odnosno apsolutnu vrednost razlike bez bita znaka
+                
+                state_next <= SHIFT_SMALLER;
               end if;
             end if;
             
+          when SHIFT_SMALLER =>
+            --u ovom stanju treba da se vrti i da dekrementira brojac count_s do nule svaki takt da pomeri jednom frakciju i da dekrementira brojac
+            shift_r_en <= '1';
+            shift_r_ctrl <= "01";
             
-            
+              
           when FRACTION_ADD =>
         end case;
     
