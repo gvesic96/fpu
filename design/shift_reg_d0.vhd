@@ -44,7 +44,7 @@ entity shift_reg_d0 is
 end shift_reg_d0;
 
 architecture Behavioral of shift_reg_d0 is
-
+    signal q_s : std_logic_vector (WIDTH-1 downto 0) := (others=>'0');
 begin
 
     shift_reg:process (rst, clk) is
