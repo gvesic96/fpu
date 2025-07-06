@@ -37,6 +37,7 @@ entity shift_reg_d0 is
            rst : in std_logic;
            ctrl : in std_logic_vector (1 downto 0);
            d : in std_logic_vector(WIDTH-1 downto 0);
+           d0_fsm : in std_logic;
            
            q : out std_logic_vector(WIDTH-1 downto 0)
     
@@ -58,10 +59,10 @@ begin
             q_s <= q_s;
           when "01" =>
             --shift left
-            q_s <= q_s(WIDTH-2 downto 0) & d(0);
+            q_s <= q_s(WIDTH-2 downto 0) & d0_fsm;
           when "10" =>
             --shift right
-            q_s <= d(0) & q_s(WIDTH-1 downto 1);
+            q_s <= d0_fsm & q_s(WIDTH-1 downto 1);
           when others =>
             --load for value "11"
             q_s <= d;
