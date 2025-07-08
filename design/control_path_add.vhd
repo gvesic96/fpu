@@ -46,7 +46,7 @@ entity control_path_add is
         
         shift_r_en : out STD_LOGIC;
         shift_r_ctrl : out STD_LOGIC_VECTOR(1 downto 0);
-        shift_r_d0 : out STD_LOGIC;
+        shift_r_d0 : out STD_LOGIC; --izlaz koji se povezuje na d0_fsm u shift registru
         
         mexp_1_sel : out STD_LOGIC;
         mexp_2_sel : out STD_LOGIC;
@@ -69,7 +69,9 @@ architecture Behavioral of control_path_add is
     signal state_next, state_reg : add_state_type;
     
     signal count_s : unsigned (7 downto 0) := (others=>'0');
-    
+    signal count_temp : unsigned (7 downto 0) := (others=>'0');
+    signal hidden_value : std_logic_vector(1 downto 0) := (others=>'0');
+
 begin
 
     state_proc: process(clk, rst) is
@@ -83,7 +85,7 @@ begin
         end if;
     end process state_proc;
 
-    control_proc: process(state_reg, start) is --za milijev automat treba dodati signale u sensitivity listu
+    control_proc: process(state_reg, start) is --za milijev automat treba dodati signale u sensitivity listu?
       variable count_v : unsigned (8 downto 0) := (others=>'0');
     begin
         case state_reg is
@@ -136,6 +138,8 @@ begin
                 count_v := (not(unsigned(ed_val)))+1; --da negativnu vrednost prevede iz komplementa dvoje, DOBIJE APSOLUTNU VREDNOST RAZLIKE
                 count_s <= count_v(7 downto 0); --dodeli 8 bita odnosno apsolutnu vrednost razlike bez bita znaka
                 
+                count_temp <= count_v(7 downto 0);
+                
                 state_next <= SHIFT_SMALLER;
               end if;
             end if;
@@ -143,10 +147,27 @@ begin
           when SHIFT_SMALLER =>
             --u ovom stanju treba da se vrti i da dekrementira brojac count_s do nule svaki takt da pomeri jednom frakciju i da dekrementira brojac
             shift_r_en <= '1';
-            shift_r_ctrl <= "01";
+            shift_r_ctrl <= "10"; --shift right
             
-              
+            if(count_s=count_temp) then
+              shift_r_d0 <='1';
+            else
+              shift_r_d0 <= '0';
+            end if;
+            
+            count_s <= count_s - 1;
+            if(count_s=0) then
+              state_next <= FRACTION_ADD;
+              big_alu_en <= '1'; --enable big alu
+              big_alu_sel <= '0'; --selektuje operaciju sabiranja op1 i op2
+            else
+              state_next <= SHIFT_SMALLER;
+            end if;
+            
           when FRACTION_ADD =>
+            
+            --u sabiranju treba ucitati vrednosti u big alu i dodati jos 2 bita da bi bilo moguce zaokruzivanje GUARD i ROUND bit
+            --GDE TREBA GENERISATI SIGNALE ZA SABIRANJE????? KOJI JE OVO AUTOMAT????
         end case;
     
     
