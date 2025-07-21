@@ -85,22 +85,22 @@ begin
         end if;
     end process state_proc;
 
-    control_proc: process(state_reg, start) is --za milijev automat treba dodati signale u sensitivity listu?
+    control_proc: process(state_reg, start) is --za milijev automat treba dodati signale u sensitivity listu? DA
       variable count_v : unsigned (8 downto 0) := (others=>'0');
     begin
         case state_reg is
           
           when IDLE =>
             if(start='1') then
-              state_next<=EXP_COMPARE_1;
-              small_alu_en <= '1';
+              small_alu_en <= '1'; --ovaj signal je suvisan
               ed_reg_en <= '1';
+              state_next <= EXP_COMPARE_1;
             else
-              state_next<=IDLE;
+              state_next <= IDLE;
             end if;
           
           when EXP_COMPARE_1 =>
-            small_alu_en <= '0';
+            small_alu_en <= '0'; --ovaj signal je suvisan
             ed_reg_en <= '0'; --keep loaded value
             state_next <= EXP_COMPARE_2;
           
@@ -109,7 +109,7 @@ begin
               mexp_1_sel <= '0'; --pusti frakciju iz op1
               mexp_2_sel <= '1'; --pusti frakciju iz op2
               
-              shift_r_en <= '1'; --enabluje shift registar i sa 11 se ucita vrednost u njega
+              shift_r_en <= '1'; --enabluje shift registar
               shift_r_ctrl <= "11"; --ucita vrednost u shift registar
               big_alu_en <= '1'; --enable big alu
               big_alu_sel <= '0'; --selektuje operaciju sabiranja op1 i op2
@@ -124,21 +124,33 @@ begin
               shift_r_en <= '1';
               shift_r_ctrl <= "11";
               
-              if(ed_val(8)='0') then --exponent difference value je pozitivno 
-                --TREBA POREDITI SAMO MSB za 0 je vrednost ed_val pozitivna
-                mexp_1_sel <= '1'; --pusti frakciju iz op2 u shift_right registar jer je manji
-                mexp_2_sel <= '0'; --pusti frakciju iz op1 u shift_right registar
+              if(ed_val(8)='0') then --exponent difference value is positive 
+                -- op1 bigger than op2
+                mexp_1_sel <= '1'; --pusti frakciju iz op2 u shift_right registar jer je exp2 manji
+                mexp_2_sel <= '0'; --pusti frakciju iz op1 u BIG_ALU
                 
                 count_s <= unsigned(ed_val(7 downto 0)); --sacuva se kao broj ciklusa koje ce biti pomerana vrednost u registru
                 
+                count_temp <= count_s; --da li je ovo neophodno??
+                
+                mux_exp_sel_top <= '1'; --pass the exp of op2 for increment/decrement
+                mux_exp_sel_bot <= '0';
+                inc_dec_ctrl <= "11";
+                
                 state_next <= SHIFT_SMALLER;
               else
-                mexp_1_sel <= '0'; --pusti exp iz op1 u shift_right registar jer je manji
-                mexp_2_sel <= '1';
+                -- op2 bigger than op1
+                mexp_1_sel <= '0'; --pusti frakciju iz op1 u shift_right registar jer je exp1 manji
+                mexp_2_sel <= '1'; --pusti frakciju iz op2 u BIG ALU
+                
+                mux_exp_sel_top <= '0'; --pass exp of op1 for increment/decrement
+                mux_exp_sel_bot <= '0';
+                inc_dec_ctrl <= "11";
+                
                 count_v := (not(unsigned(ed_val)))+1; --da negativnu vrednost prevede iz komplementa dvoje, DOBIJE APSOLUTNU VREDNOST RAZLIKE
                 count_s <= count_v(7 downto 0); --dodeli 8 bita odnosno apsolutnu vrednost razlike bez bita znaka
                 
-                count_temp <= count_v(7 downto 0);
+                count_temp <= count_v(7 downto 0); --DA LI JE OVO NEOPHODNO ?
                 
                 state_next <= SHIFT_SMALLER;
               end if;
@@ -146,9 +158,14 @@ begin
             
           when SHIFT_SMALLER =>
             --u ovom stanju treba da se vrti i da dekrementira brojac count_s do nule svaki takt da pomeri jednom frakciju i da dekrementira brojac
+            
+            --treba ovde if ako je count_s vece od nule??????????????????????????????? ako je nula da ne ne shiftuje nista nego samo da predje u naredno stanje !
             shift_r_en <= '1';
             shift_r_ctrl <= "10"; --shift right
             
+            inc_dec_ctrl <= "01"; ----------- EXPONENT INCREMENT for shifting fraction right
+            
+            --prvi shift unosi skrivenu jedinicu
             if(count_s=count_temp) then
               shift_r_d0 <='1';
             else
@@ -167,7 +184,7 @@ begin
           when FRACTION_ADD =>
             
             --u sabiranju treba ucitati vrednosti u big alu i dodati jos 2 bita da bi bilo moguce zaokruzivanje GUARD i ROUND bit
-            --GDE TREBA GENERISATI SIGNALE ZA SABIRANJE????? KOJI JE OVO AUTOMAT????
+            --GDE TREBA GENERISATI SIGNALE ZA SABIRANJE?????
         end case;
     
     
