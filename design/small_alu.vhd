@@ -33,7 +33,7 @@ use IEEE.numeric_std.all;
 --use UNISIM.VComponents.all;
 
 entity small_alu is
-    Generic ( WIDTH : positive := 32);
+    Generic ( WIDTH : positive := 8);
     Port ( op1 : in STD_LOGIC_VECTOR(WIDTH-1 downto 0);
            op2 : in STD_LOGIC_VECTOR(WIDTH-1 downto 0);
            result : out STD_LOGIC_VECTOR(WIDTH downto 0)--9 bita za izlas SMALL ALUa zbog znaka po kome odredjuje da li je broj pozitivan ili negativan

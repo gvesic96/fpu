@@ -34,7 +34,7 @@ use IEEE.numeric_std.all;
 --use UNISIM.VComponents.all;
 
 entity big_alu is
-    Generic ( WIDTH : positive := 32);
+    Generic ( WIDTH : positive := 23);
     Port ( op1 : in STD_LOGIC_VECTOR(WIDTH-1 downto 0);
            op2 : in STD_LOGIC_VECTOR(WIDTH-1 downto 0);
            sel : in STD_LOGIC;

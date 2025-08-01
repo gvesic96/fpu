@@ -38,7 +38,8 @@ entity control_path_add is
         start : in STD_LOGIC;
         ed_val : in STD_LOGIC_VECTOR(8 downto 0); --9 bita jer je signed vrednost
         fraction_val : in STD_LOGIC_VECTOR(7 downto 0);
-        big_alu_out : in STD_LOGIC_VECTOR(22 downto 0);
+        big_alu_res : in STD_LOGIC_VECTOR(22 downto 0);
+        big_alu_carry : in STD_LOGIC;
         
         small_alu_en : out STD_LOGIC; --enable signal za small ALU
         ed_reg_en : out STD_LOGIC; --enable signal za registar koji prihvata izlas small ALUa
@@ -58,8 +59,13 @@ entity control_path_add is
         
         big_alu_en : out STD_LOGIC;
         big_alu_sel : out STD_LOGIC;
+        mres_sel : out STD_LOGIC;
         
-        round_ctrl : out STD_LOGIC
+        norm_reg_en : out STD_LOGIC;
+        norm_reg_ctrl : out STD_LOGIC_VECTOR(1 downto 0);
+        norm_reg_d0 : out STD_LOGIC;
+        
+        round_en : out STD_LOGIC
         
    );
 end control_path_add;
@@ -70,7 +76,7 @@ architecture Behavioral of control_path_add is
     
     signal count_s : unsigned (7 downto 0) := (others=>'0');
     signal count_temp : unsigned (7 downto 0) := (others=>'0');
-    signal hidden_value : std_logic_vector(1 downto 0) := (others=>'0');
+    signal hidden_value : unsigned(1 downto 0) := (others=>'0'); --za sta mi je trebao ovaj signal?
 
 begin
 
@@ -118,11 +124,17 @@ begin
               mux_exp_sel_bot <= '0'; --selektuje eksponent iz ulaznog broja (sa '1' bi selektovao eksponent iz round bloka)
               inc_dec_ctrl <= "11"; --ucita vrednost selektovanog eksponenta
               
+              hidden_value <= "10";  --VREDNOST LEVO OD BINARNE TACKE AKO SU OPERANDI ISTOG EKSPONENTA
+              
+              big_alu_en <= '1'; --enable big alu
+              big_alu_sel <= '0'; --selektuje operaciju sabiranja op1 i op2
               state_next <= FRACTION_ADD;
             else
               --OVDE ENABLUJE SHIFT_RIGHT REGISTAR I UCITA U NJEGA VREDNOST
               shift_r_en <= '1';
               shift_r_ctrl <= "11";
+            
+              hidden_value <= "01"; --VREDNOST LEVO OD BINARNE TACKE AKO SU OPERANDI NISU ISTOG EKSPONENTA
               
               if(ed_val(8)='0') then --exponent difference value is positive 
                 -- op1 bigger than op2
@@ -144,8 +156,8 @@ begin
                 mexp_2_sel <= '1'; --pusti frakciju iz op2 u BIG ALU
                 
                 mux_exp_sel_top <= '0'; --pass exp of op1 for increment/decrement
-                mux_exp_sel_bot <= '0';
-                inc_dec_ctrl <= "11";
+                mux_exp_sel_bot <= '0'; --pass exp from top
+                inc_dec_ctrl <= "11"; --load value into inc_dec module
                 
                 count_v := (not(unsigned(ed_val)))+1; --da negativnu vrednost prevede iz komplementa dvoje, DOBIJE APSOLUTNU VREDNOST RAZLIKE
                 count_s <= count_v(7 downto 0); --dodeli 8 bita odnosno apsolutnu vrednost razlike bez bita znaka
@@ -158,11 +170,8 @@ begin
             
           when SHIFT_SMALLER =>
             --u ovom stanju treba da se vrti i da dekrementira brojac count_s do nule svaki takt da pomeri jednom frakciju i da dekrementira brojac
-            
-            --treba ovde if ako je count_s vece od nule??????????????????????????????? ako je nula da ne ne shiftuje nista nego samo da predje u naredno stanje !
             shift_r_en <= '1';
             shift_r_ctrl <= "10"; --shift right
-            
             inc_dec_ctrl <= "01"; ----------- EXPONENT INCREMENT for shifting fraction right
             
             --prvi shift unosi skrivenu jedinicu
@@ -171,20 +180,52 @@ begin
             else
               shift_r_d0 <= '0';
             end if;
-            
-            count_s <= count_s - 1;
             if(count_s=0) then
-              state_next <= FRACTION_ADD;
+              shift_r_en <= '0';
+              shift_r_ctrl <= "11";
+              inc_dec_ctrl <= "00";
+              
               big_alu_en <= '1'; --enable big alu
               big_alu_sel <= '0'; --selektuje operaciju sabiranja op1 i op2
+              state_next <= FRACTION_ADD;
             else
+              count_s <= count_s - 1;
               state_next <= SHIFT_SMALLER;
             end if;
             
           when FRACTION_ADD =>
-            
             --u sabiranju treba ucitati vrednosti u big alu i dodati jos 2 bita da bi bilo moguce zaokruzivanje GUARD i ROUND bit
-            --GDE TREBA GENERISATI SIGNALE ZA SABIRANJE?????
+            mres_sel <= '0';
+            norm_reg_en <= '1';
+            norm_reg_ctrl <= "11"; --load big_alu result into normalization register
+            if(big_alu_carry='0') then
+              hidden_value <= hidden_value + 0; 
+            else
+              hidden_value <= hidden_value + 1;
+            end if;
+            state_next <= NORM;
+            
+          when NORM =>
+          --pri normalizaciji je potrebno uvecati eksponent !
+            norm_reg_en <= '1';
+            norm_reg_ctrl <= "10";
+            case hidden_value is
+              when "10" =>
+                norm_reg_d0 <= '0';
+                hidden_value <= "01";
+              when "11" =>
+                norm_reg_d0 <= '1';
+                hidden_value <= "01";
+              when others =>
+                norm_reg_ctrl <= "00";
+            end case;
+            state_next <= ROUND;
+            
+          when ROUND =>
+            -- TREBA DA NAPRAVIM MODUL ZA ZAOKRUZIVANJE
+            
+            
+            
         end case;
     
     
