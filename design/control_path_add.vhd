@@ -37,7 +37,7 @@ entity control_path_add is
         rst : in STD_LOGIC;
         start : in STD_LOGIC;
         ed_val : in STD_LOGIC_VECTOR(8 downto 0); --9 bita jer je signed vrednost
-        fraction_val : in STD_LOGIC_VECTOR(7 downto 0);
+        --fraction_val : in STD_LOGIC_VECTOR(7 downto 0);
         big_alu_res : in STD_LOGIC_VECTOR(22 downto 0);
         big_alu_carry : in STD_LOGIC;
         
@@ -49,8 +49,8 @@ entity control_path_add is
         shift_r_ctrl : out STD_LOGIC_VECTOR(1 downto 0);
         shift_r_d0 : out STD_LOGIC; --izlaz koji se povezuje na d0_fsm u shift registru
         
-        mexp_1_sel : out STD_LOGIC;
-        mexp_2_sel : out STD_LOGIC;
+        mfract_1_sel : out STD_LOGIC;
+        mfract_2_sel : out STD_LOGIC;
         
         
         mux_exp_sel_top : out STD_LOGIC;
@@ -65,13 +65,18 @@ entity control_path_add is
         norm_reg_ctrl : out STD_LOGIC_VECTOR(1 downto 0);
         norm_reg_d0 : out STD_LOGIC;
         
-        round_en : out STD_LOGIC
+        round_en : out STD_LOGIC;
+        round_res : in STD_LOGIC_VECTOR(25 downto 0);
+        round_carry : in STD_LOGIC;
+        
+        output_reg_en : out STD_LOGIC;
+        rdy : out STD_LOGIC
         
    );
 end control_path_add;
 
 architecture Behavioral of control_path_add is
-    type add_state_type is (IDLE, EXP_COMPARE_1, EXP_COMPARE_2, SHIFT_SMALLER, FRACTION_ADD, NORM, ROUND, READY_STATE);
+    type add_state_type is (IDLE, EXP_COMPARE_1, EXP_COMPARE_2, SHIFT_SMALLER, FRACTION_ADD, NORM, ROUND, FINAL_CHECK, READY_STATE);
     signal state_next, state_reg : add_state_type;
     
     signal count_s : unsigned (7 downto 0) := (others=>'0');
@@ -112,8 +117,8 @@ begin
           
           when EXP_COMPARE_2 =>
             if(unsigned(ed_val)=0) then
-              mexp_1_sel <= '0'; --pusti frakciju iz op1
-              mexp_2_sel <= '1'; --pusti frakciju iz op2
+              mfract_1_sel <= '0'; --pusti frakciju iz op1
+              mfract_2_sel <= '1'; --pusti frakciju iz op2
               
               shift_r_en <= '1'; --enabluje shift registar
               shift_r_ctrl <= "11"; --ucita vrednost u shift registar
@@ -138,8 +143,8 @@ begin
               
               if(ed_val(8)='0') then --exponent difference value is positive 
                 -- op1 bigger than op2
-                mexp_1_sel <= '1'; --pusti frakciju iz op2 u shift_right registar jer je exp2 manji
-                mexp_2_sel <= '0'; --pusti frakciju iz op1 u BIG_ALU
+                mfract_1_sel <= '1'; --pusti frakciju iz op2 u shift_right registar jer je exp2 manji
+                mfract_2_sel <= '0'; --pusti frakciju iz op1 u BIG_ALU
                 
                 count_s <= unsigned(ed_val(7 downto 0)); --sacuva se kao broj ciklusa koje ce biti pomerana vrednost u registru
                 
@@ -152,8 +157,8 @@ begin
                 state_next <= SHIFT_SMALLER;
               else
                 -- op2 bigger than op1
-                mexp_1_sel <= '0'; --pusti frakciju iz op1 u shift_right registar jer je exp1 manji
-                mexp_2_sel <= '1'; --pusti frakciju iz op2 u BIG ALU
+                mfract_1_sel <= '0'; --pusti frakciju iz op1 u shift_right registar jer je exp1 manji
+                mfract_2_sel <= '1'; --pusti frakciju iz op2 u BIG ALU
                 
                 mux_exp_sel_top <= '0'; --pass exp of op1 for increment/decrement
                 mux_exp_sel_bot <= '0'; --pass exp from top
@@ -207,8 +212,6 @@ begin
             
           when NORM =>
           --pri normalizaciji je potrebno uvecati eksponent !
-            norm_reg_en <= '1';
-            norm_reg_ctrl <= "10";
             case hidden_value is
               when "10" =>
                 norm_reg_d0 <= '0';
@@ -219,20 +222,35 @@ begin
               when others =>
                 norm_reg_ctrl <= "00";
             end case;
+            norm_reg_en <= '1';
+            norm_reg_ctrl <= "10";
+            inc_dec_ctrl <= "01"; --icrementing exp
+            --round_en <= '1';
             state_next <= ROUND;
             
           when ROUND =>
-            -- TREBA DA NAPRAVIM MODUL ZA ZAOKRUZIVANJE
+            round_en <= '1';
+            state_next <= FINAL_CHECK;
             
+          when FINAL_CHECK =>
+            if(round_carry='1') then
+              hidden_value <= hidden_value + 1;
+              norm_reg_en <= '1';
+              norm_reg_ctrl <= "00";
+              mres_sel <= '1';
+              state_next <= NORM;
+            else
+              output_reg_en <= '1';
+              state_next <= READY_STATE;
+            end if;
             
+          when READY_STATE =>
+            rdy <= '1';
+            state_next <= IDLE;
             
         end case;
     
-    
     end process control_proc;
-
-
-
 
 
 end Behavioral;
