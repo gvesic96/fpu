@@ -49,7 +49,7 @@ begin
     d_reg_proc: process (clk, rst) is
     begin
         if(rst = '1') then
-          q <= (others => '0');
+          q_s <= (others => '0');
         else
           if(clk'event and clk='1') then
             if(en='1') then

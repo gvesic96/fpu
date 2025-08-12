@@ -36,16 +36,15 @@ entity control_path_add is
   Port (clk : in STD_LOGIC;
         rst : in STD_LOGIC;
         start : in STD_LOGIC;
-        ed_val : in STD_LOGIC_VECTOR(8 downto 0); --9 bita jer je signed vrednost
-        --fraction_val : in STD_LOGIC_VECTOR(7 downto 0);
-        big_alu_res : in STD_LOGIC_VECTOR(22 downto 0);
-        big_alu_carry : in STD_LOGIC;
         
-        small_alu_en : out STD_LOGIC; --enable signal za small ALU
+        operands_en : out STD_LOGIC; --enable signal for input registers
+        
+        ed_val : in STD_LOGIC_VECTOR(8 downto 0); --9 bita jer je signed vrednost
+        big_alu_carry : in STD_LOGIC;
         ed_reg_en : out STD_LOGIC; --enable signal za registar koji prihvata izlas small ALUa
         
         
-        shift_r_en : out STD_LOGIC;
+        
         shift_r_ctrl : out STD_LOGIC_VECTOR(1 downto 0);
         shift_r_d0 : out STD_LOGIC; --izlaz koji se povezuje na d0_fsm u shift registru
         
@@ -61,13 +60,14 @@ entity control_path_add is
         big_alu_sel : out STD_LOGIC;
         mres_sel : out STD_LOGIC;
         
-        norm_reg_en : out STD_LOGIC;
+        --norm_reg_en : out STD_LOGIC;
         norm_reg_ctrl : out STD_LOGIC_VECTOR(1 downto 0);
         norm_reg_d0 : out STD_LOGIC;
         
         round_en : out STD_LOGIC;
-        round_res : in STD_LOGIC_VECTOR(25 downto 0);
+        --round_res : in STD_LOGIC_VECTOR(25 downto 0); --izgleda da se ovaj signal ne koristi NI ZA STA????!?!?!?!??! moguce d aje potreban samo carry u FSM !!!!
         round_carry : in STD_LOGIC;
+        round_rdy : in STD_LOGIC;
         
         output_reg_en : out STD_LOGIC;
         rdy : out STD_LOGIC
@@ -76,7 +76,7 @@ entity control_path_add is
 end control_path_add;
 
 architecture Behavioral of control_path_add is
-    type add_state_type is (IDLE, EXP_COMPARE_1, EXP_COMPARE_2, SHIFT_SMALLER, FRACTION_ADD, NORM, ROUND, FINAL_CHECK, READY_STATE);
+    type add_state_type is (IDLE, LOAD, EXP_COMPARE_1, EXP_COMPARE_2, SHIFT_SMALLER, FRACTION_ADD, NORM, ROUND, FINAL_CHECK, READY_STATE);
     signal state_next, state_reg : add_state_type;
     
     signal count_s : unsigned (7 downto 0) := (others=>'0');
@@ -99,19 +99,26 @@ begin
     control_proc: process(state_reg, start) is --za milijev automat treba dodati signale u sensitivity listu? DA
       variable count_v : unsigned (8 downto 0) := (others=>'0');
     begin
+        rdy <= '0'; --podrazumevana vrednost
         case state_reg is
           
           when IDLE =>
             if(start='1') then
-              small_alu_en <= '1'; --ovaj signal je suvisan
-              ed_reg_en <= '1';
-              state_next <= EXP_COMPARE_1;
+              --small_alu_en <= '1'; --ovaj signal je suvisan
+              --ed_reg_en <= '1';
+              operands_en <= '1';
+              state_next <= LOAD;
             else
               state_next <= IDLE;
             end if;
           
+          when LOAD =>
+            --operands_en <= '1';
+            ed_reg_en <= '1';
+            state_next <= EXP_COMPARE_1;
+          
           when EXP_COMPARE_1 =>
-            small_alu_en <= '0'; --ovaj signal je suvisan
+            --small_alu_en <= '0'; --ovaj signal je suvisan
             ed_reg_en <= '0'; --keep loaded value
             state_next <= EXP_COMPARE_2;
           
@@ -120,7 +127,7 @@ begin
               mfract_1_sel <= '0'; --pusti frakciju iz op1
               mfract_2_sel <= '1'; --pusti frakciju iz op2
               
-              shift_r_en <= '1'; --enabluje shift registar
+              --shift_r_en <= '1'; --enabluje shift registar
               shift_r_ctrl <= "11"; --ucita vrednost u shift registar
               big_alu_en <= '1'; --enable big alu
               big_alu_sel <= '0'; --selektuje operaciju sabiranja op1 i op2
@@ -136,7 +143,7 @@ begin
               state_next <= FRACTION_ADD;
             else
               --OVDE ENABLUJE SHIFT_RIGHT REGISTAR I UCITA U NJEGA VREDNOST
-              shift_r_en <= '1';
+              --shift_r_en <= '1';
               shift_r_ctrl <= "11";
             
               hidden_value <= "01"; --VREDNOST LEVO OD BINARNE TACKE AKO SU OPERANDI NISU ISTOG EKSPONENTA
@@ -175,7 +182,7 @@ begin
             
           when SHIFT_SMALLER =>
             --u ovom stanju treba da se vrti i da dekrementira brojac count_s do nule svaki takt da pomeri jednom frakciju i da dekrementira brojac
-            shift_r_en <= '1';
+            --shift_r_en <= '1';
             shift_r_ctrl <= "10"; --shift right
             inc_dec_ctrl <= "01"; ----------- EXPONENT INCREMENT for shifting fraction right
             
@@ -186,7 +193,7 @@ begin
               shift_r_d0 <= '0';
             end if;
             if(count_s=0) then
-              shift_r_en <= '0';
+              --shift_r_en <= '0';
               shift_r_ctrl <= "11";
               inc_dec_ctrl <= "00";
               
@@ -201,7 +208,7 @@ begin
           when FRACTION_ADD =>
             --u sabiranju treba ucitati vrednosti u big alu i dodati jos 2 bita da bi bilo moguce zaokruzivanje GUARD i ROUND bit
             mres_sel <= '0';
-            norm_reg_en <= '1';
+            --norm_reg_en <= '1';
             norm_reg_ctrl <= "11"; --load big_alu result into normalization register
             if(big_alu_carry='0') then
               hidden_value <= hidden_value + 0; 
@@ -222,7 +229,7 @@ begin
               when others =>
                 norm_reg_ctrl <= "00";
             end case;
-            norm_reg_en <= '1';
+            --norm_reg_en <= '1';
             norm_reg_ctrl <= "10";
             inc_dec_ctrl <= "01"; --icrementing exp
             --round_en <= '1';
@@ -233,15 +240,20 @@ begin
             state_next <= FINAL_CHECK;
             
           when FINAL_CHECK =>
-            if(round_carry='1') then
-              hidden_value <= hidden_value + 1;
-              norm_reg_en <= '1';
-              norm_reg_ctrl <= "00";
-              mres_sel <= '1';
-              state_next <= NORM;
-            else
-              output_reg_en <= '1';
-              state_next <= READY_STATE;
+          --ROUND_RDY SIGNAL JE VEROVATNO NEPOTREBAN !!!! OBRATI PAZNJU
+            if(round_rdy = '1') then
+              if(round_carry='1') then
+                hidden_value <= hidden_value + 1;
+                --norm_reg_en <= '1';
+                norm_reg_ctrl <= "00";
+                mres_sel <= '1';
+                state_next <= NORM;
+              else
+                output_reg_en <= '1';
+                state_next <= READY_STATE;
+              end if;
+             else
+               state_next <= FINAL_CHECK;
             end if;
             
           when READY_STATE =>
