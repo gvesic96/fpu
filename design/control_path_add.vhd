@@ -100,6 +100,23 @@ begin
       variable count_v : unsigned (8 downto 0) := (others=>'0');
     begin
         rdy <= '0'; --podrazumevana vrednost
+        big_alu_en <= '0';
+        big_alu_sel <= '0';
+        ed_reg_en <= '0';
+        inc_dec_ctrl <= "00";
+        mfract_1_sel <= '0';
+        mfract_2_sel <= '1';
+        mres_sel <= '0';
+        mux_exp_sel_bot <= '0';
+        mux_exp_sel_top <= '0';
+        norm_reg_ctrl <= "00";
+        norm_reg_d0 <= '0';
+        operands_en <= '0';
+        output_reg_en <= '0';
+        round_en <= '0';
+        shift_r_ctrl <= "00";
+        shift_r_d0 <= '0';
+        
         case state_reg is
           
           when IDLE =>
@@ -207,6 +224,7 @@ begin
             
           when FRACTION_ADD =>
             --u sabiranju treba ucitati vrednosti u big alu i dodati jos 2 bita da bi bilo moguce zaokruzivanje GUARD i ROUND bit
+            big_alu_en <= '1';
             mres_sel <= '0';
             --norm_reg_en <= '1';
             norm_reg_ctrl <= "11"; --load big_alu result into normalization register

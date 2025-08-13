@@ -192,8 +192,8 @@ begin
         generic map(WIDTH => EXT_WIDTH_FRACT)
         port map(op1 => ba_op_1_s,
                  op2 => ba_op_2_s,
-                 sel => ba_en,
-                 en => ba_sel,
+                 sel => ba_sel,
+                 en => ba_en,
                  carry => ba_carry,
                  result => ba_result_s
         );

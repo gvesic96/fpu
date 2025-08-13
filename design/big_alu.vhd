@@ -50,14 +50,14 @@ architecture Behavioral of big_alu is
 
 begin
 
-    alu: process (sel, op1, op2) is
-    -- da li je enable signal neophodan u sensitivy listi?
+    alu: process (en, sel, op1, op2) is
+    -- da li je enable signal neophodan u sensitivy listi? NARAVNO 
     begin
       if(en = '1') then
         if(sel ='0') then
             
             --result <= std_logic_vector(unsigned(op1) + unsigned(op2));
-            result_s <= ('0' & unsigned(op1)) + ('0' & unsigned(op2));
+            result_s <= ('0' & (unsigned(op1)) + ('0' & unsigned(op2)));
             
           else
             
