@@ -57,22 +57,23 @@ begin
         if(sel ='0') then
             
             --result <= std_logic_vector(unsigned(op1) + unsigned(op2));
-            result_s <= ('0' & (unsigned(op1)) + ('0' & unsigned(op2)));
+            result_s <= ('0' & unsigned(op1)) + ('0' & unsigned(op2));
             
           else
             
             --result <= std_logic_vector(unsigned(op1) + (not(unsigned(op2))+1));
-            result_s <= ('0' & (unsigned(op1)) + (not('0' & unsigned(op2)+1)));
+            result_s <= ('0' & unsigned(op1)) + (not('0' & unsigned(op2)) + 1);
   
         end if;
-        carry <= std_logic(result_s(WIDTH)); --uzme msb kao carry out signal
+        --carry <= std_logic(result_s(WIDTH)); --uzme msb kao carry out signal
       else
         result_s <= (others => '0');
-        carry <= '0';
+        --carry <= '0';
       end if;
       
     end process alu;
-
+    
+    carry <= std_logic(result_s(WIDTH));
     result <= std_logic_vector(result_s(WIDTH-1 downto 0));
 
 end Behavioral;

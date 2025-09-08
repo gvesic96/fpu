@@ -96,7 +96,7 @@ begin
         end if;
     end process state_proc;
 
-    control_proc: process(state_reg, start) is --za milijev automat treba dodati signale u sensitivity listu? DA
+    control_proc: process(state_reg, start, big_alu_carry) is --za milijev automat treba dodati signale u sensitivity listu? DA
       variable count_v : unsigned (8 downto 0) := (others=>'0');
     begin
         rdy <= '0'; --podrazumevana vrednost
@@ -146,8 +146,8 @@ begin
               
               --shift_r_en <= '1'; --enabluje shift registar
               shift_r_ctrl <= "11"; --ucita vrednost u shift registar
-              big_alu_en <= '1'; --enable big alu
-              big_alu_sel <= '0'; --selektuje operaciju sabiranja op1 i op2
+              --big_alu_en <= '1'; --enable big alu
+              --big_alu_sel <= '0'; --selektuje operaciju sabiranja op1 i op2
               
               mux_exp_sel_top <= '0'; --selektuje eksponent op1 (moze i '1' za op2 svejedno je jer su jednaki)
               mux_exp_sel_bot <= '0'; --selektuje eksponent iz ulaznog broja (sa '1' bi selektovao eksponent iz round bloka)
@@ -155,8 +155,8 @@ begin
               
               hidden_value <= "10";  --VREDNOST LEVO OD BINARNE TACKE AKO SU OPERANDI ISTOG EKSPONENTA
               
-              big_alu_en <= '1'; --enable big alu
-              big_alu_sel <= '0'; --selektuje operaciju sabiranja op1 i op2
+              --big_alu_en <= '1'; --enable big alu
+              --big_alu_sel <= '0'; --selektuje operaciju sabiranja op1 i op2
               state_next <= FRACTION_ADD;
             else
               --OVDE ENABLUJE SHIFT_RIGHT REGISTAR I UCITA U NJEGA VREDNOST
@@ -214,8 +214,8 @@ begin
               shift_r_ctrl <= "11";
               inc_dec_ctrl <= "00";
               
-              big_alu_en <= '1'; --enable big alu
-              big_alu_sel <= '0'; --selektuje operaciju sabiranja op1 i op2
+              --big_alu_en <= '1'; --enable big alu
+              --big_alu_sel <= '0'; --selektuje operaciju sabiranja op1 i op2
               state_next <= FRACTION_ADD;
             else
               count_s <= count_s - 1;
@@ -234,9 +234,21 @@ begin
               hidden_value <= hidden_value + 1;
             end if;
             state_next <= NORM;
-            
+            --state_next <= ADD_BUFF;
+          
+          --when ADD_BUFF =>
+          --  big_alu_en <= '1';
+          --  if(big_alu_carry='0') then
+          --    hidden_value <= hidden_value + 0; 
+          --  else
+          --    hidden_value <= hidden_value + 1;
+          --  end if; 
+          --  state_next <= NORM;
+          
           when NORM =>
+          big_alu_en <= '1';
           --pri normalizaciji je potrebno uvecati eksponent !
+          
             case hidden_value is
               when "10" =>
                 norm_reg_d0 <= '0';
