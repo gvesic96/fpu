@@ -76,10 +76,10 @@ entity control_path_add is
 end control_path_add;
 
 architecture Behavioral of control_path_add is
-    type add_state_type is (IDLE, LOAD, EXP_COMPARE_1, EXP_COMPARE_2, SHIFT_SMALLER, FRACTION_ADD, NORM, ROUND, FINAL_CHECK, READY_STATE);
+    type add_state_type is (IDLE, LOAD, EXP_COMPARE_1, EXP_COMPARE_2, SHIFT_SMALLER, FRACTION_ADD, NORM, BUFF, ROUND, FINAL_CHECK, READY_STATE);
     signal state_next, state_reg : add_state_type;
     
-    signal count_s : unsigned (7 downto 0) := (others=>'0');
+    signal count_s, count_s_next : unsigned (7 downto 0) := (others=>'0');
     signal count_temp : unsigned (7 downto 0) := (others=>'0');
     signal hidden_value : unsigned(1 downto 0) := (others=>'0'); --za sta mi je trebao ovaj signal?
 
@@ -91,12 +91,13 @@ begin
           state_reg <= IDLE;
         else
           if(clk'event and clk='1') then
+            count_s <= count_s_next;
             state_reg <= state_next;
           end if;
         end if;
     end process state_proc;
 
-    control_proc: process(state_reg, start, big_alu_carry) is --za milijev automat treba dodati signale u sensitivity listu? DA
+    control_proc: process(state_reg, start, big_alu_carry, count_s) is --za milijev automat treba dodati signale u sensitivity listu? DA
       variable count_v : unsigned (8 downto 0) := (others=>'0');
     begin
         rdy <= '0'; --podrazumevana vrednost
@@ -116,6 +117,8 @@ begin
         round_en <= '0';
         shift_r_ctrl <= "00";
         shift_r_d0 <= '0';
+        
+        --count_s_next <= (others=>'0');
         
         case state_reg is
           
@@ -144,10 +147,7 @@ begin
               mfract_1_sel <= '0'; --pusti frakciju iz op1
               mfract_2_sel <= '1'; --pusti frakciju iz op2
               
-              --shift_r_en <= '1'; --enabluje shift registar
               shift_r_ctrl <= "11"; --ucita vrednost u shift registar
-              --big_alu_en <= '1'; --enable big alu
-              --big_alu_sel <= '0'; --selektuje operaciju sabiranja op1 i op2
               
               mux_exp_sel_top <= '0'; --selektuje eksponent op1 (moze i '1' za op2 svejedno je jer su jednaki)
               mux_exp_sel_bot <= '0'; --selektuje eksponent iz ulaznog broja (sa '1' bi selektovao eksponent iz round bloka)
@@ -155,24 +155,23 @@ begin
               
               hidden_value <= "10";  --VREDNOST LEVO OD BINARNE TACKE AKO SU OPERANDI ISTOG EKSPONENTA
               
-              --big_alu_en <= '1'; --enable big alu
-              --big_alu_sel <= '0'; --selektuje operaciju sabiranja op1 i op2
               state_next <= FRACTION_ADD;
             else
               --OVDE ENABLUJE SHIFT_RIGHT REGISTAR I UCITA U NJEGA VREDNOST
-              --shift_r_en <= '1';
-              shift_r_ctrl <= "11";
+              shift_r_ctrl <= "11"; --"11" load value into shift reg
             
-              hidden_value <= "01"; --VREDNOST LEVO OD BINARNE TACKE AKO SU OPERANDI NISU ISTOG EKSPONENTA
+              hidden_value <= "01"; --VREDNOST LEVO OD BINARNE TACKE AKO OPERANDI NISU ISTOG EKSPONENTA
               
               if(ed_val(8)='0') then --exponent difference value is positive 
                 -- op1 bigger than op2
                 mfract_1_sel <= '1'; --pusti frakciju iz op2 u shift_right registar jer je exp2 manji
                 mfract_2_sel <= '0'; --pusti frakciju iz op1 u BIG_ALU
                 
-                count_s <= unsigned(ed_val(7 downto 0)); --sacuva se kao broj ciklusa koje ce biti pomerana vrednost u registru
+                count_s_next <= unsigned(ed_val(7 downto 0)); --sacuva se kao broj ciklusa koje ce biti pomerana vrednost u registru
                 
-                count_temp <= count_s; --da li je ovo neophodno??
+                count_temp <= unsigned(ed_val(7 downto 0));
+                --count_temp <= count_s; --da li je ovo neophodno??
+                --dodela je konkurentna on ce uzeti vrednost count_s = (others=>'0')
                 
                 mux_exp_sel_top <= '1'; --pass the exp of op2 for increment/decrement
                 mux_exp_sel_bot <= '0';
@@ -189,7 +188,7 @@ begin
                 inc_dec_ctrl <= "11"; --load value into inc_dec module
                 
                 count_v := (not(unsigned(ed_val)))+1; --da negativnu vrednost prevede iz komplementa dvoje, DOBIJE APSOLUTNU VREDNOST RAZLIKE
-                count_s <= count_v(7 downto 0); --dodeli 8 bita odnosno apsolutnu vrednost razlike bez bita znaka
+                count_s_next <= count_v(7 downto 0); --dodeli 8 bita odnosno apsolutnu vrednost razlike bez bita znaka
                 
                 count_temp <= count_v(7 downto 0); --DA LI JE OVO NEOPHODNO ?
                 
@@ -199,26 +198,22 @@ begin
             
           when SHIFT_SMALLER =>
             --u ovom stanju treba da se vrti i da dekrementira brojac count_s do nule svaki takt da pomeri jednom frakciju i da dekrementira brojac
-            --shift_r_en <= '1';
             shift_r_ctrl <= "10"; --shift right
             inc_dec_ctrl <= "01"; ----------- EXPONENT INCREMENT for shifting fraction right
             
             --prvi shift unosi skrivenu jedinicu
-            if(count_s=count_temp) then
-              shift_r_d0 <='1';
+            if(count_s = count_temp) then
+              shift_r_d0 <= '1';
             else
               shift_r_d0 <= '0';
             end if;
-            if(count_s=0) then
-              --shift_r_en <= '0';
-              shift_r_ctrl <= "11";
+            
+            if(count_s = 0) then
+              shift_r_ctrl <= "00";
               inc_dec_ctrl <= "00";
-              
-              --big_alu_en <= '1'; --enable big alu
-              --big_alu_sel <= '0'; --selektuje operaciju sabiranja op1 i op2
               state_next <= FRACTION_ADD;
             else
-              count_s <= count_s - 1;
+              count_s_next <= count_s - 1;
               state_next <= SHIFT_SMALLER;
             end if;
             
@@ -260,9 +255,12 @@ begin
                 norm_reg_ctrl <= "00";
             end case;
             --norm_reg_en <= '1';
-            norm_reg_ctrl <= "10";
+            norm_reg_ctrl <= "10"; --shift right ?
             inc_dec_ctrl <= "01"; --icrementing exp
             --round_en <= '1';
+            state_next <= BUFF;
+            
+          when BUFF =>
             state_next <= ROUND;
             
           when ROUND =>
@@ -290,6 +288,9 @@ begin
             rdy <= '1';
             state_next <= IDLE;
             
+            
+          when others =>
+            state_next <= IDLE;
         end case;
     
     end process control_proc;
