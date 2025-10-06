@@ -55,16 +55,20 @@ architecture Behavioral of add_module is
     --signal big_alu_carry_s : STD_LOGIC;
     signal round_carry_s, round_rdy_s : STD_LOGIC;
     signal ba_carry_s : STD_LOGIC;
+    signal op1_sign_s, op2_sign_s : STD_LOGIC;
+    signal op1_fract_s, op2_fract_s : STD_LOGIC_VECTOR(WIDTH_FRACT-1 downto 0);
 
     --signals from control_path to data_path
     signal op_en_s, ed_reg_en_s, shift_r_d0_s : STD_LOGIC;
     signal shift_r_ctrl_s, inc_dec_ctrl_s, nreg_ctrl_s : STD_LOGIC_VECTOR(1 downto 0);
     signal mfract_1_sel_s, mfract_2_sel_s, mexp_sel_top_s, mexp_sel_bot_s, mres_sel_s : STD_LOGIC;
     signal ba_en_s, ba_sel_s : STD_LOGIC;
+    signal shift_flag_s : STD_LOGIC;
     
     signal nreg_d0_s : STD_LOGIC;
     signal round_en_s : STD_LOGIC;
     signal oreg_en_s : STD_LOGIC;
+    signal res_sign_s : STD_LOGIC;
     
 begin
 
@@ -73,12 +77,19 @@ begin
                  rst => rst,
                  start => start,
                  operands_en => op_en_s,
+                 
+                 op1_sign => op1_sign_s,
+                 op1_fract => op1_fract_s,
+                 op2_sign => op2_sign_s,
+                 op2_fract => op2_fract_s,
+                 
                  ed_val => ed_val_s,
                  ed_reg_en => ed_reg_en_s,
                  big_alu_carry => ba_carry_s,
                  --shift_r_en => shift_r_en_s,
                  shift_r_d0 => shift_r_d0_s,
                  shift_r_ctrl => shift_r_ctrl_s,
+                 shift_flag => shift_flag_s,
                  mfract_1_sel => mfract_1_sel_s,
                  mfract_2_sel => mfract_2_sel_s,
                  mux_exp_sel_top => mexp_sel_top_s,
@@ -92,6 +103,7 @@ begin
                  round_en => round_en_s,
                  round_rdy => round_rdy_s,
                  round_carry => round_carry_s,--iz data_patha u control_path
+                 res_sign => res_sign_s,
                  output_reg_en => oreg_en_s,
                  rdy => rdy
         );
@@ -107,6 +119,11 @@ begin
                  op1 => op1,
                  op2 => op2,
                  
+                 op1_sign => op1_sign_s,
+                 op1_fract => op1_fract_s,
+                 op2_sign => op2_sign_s,
+                 op2_fract => op2_fract_s,
+                 
                  op_reg_en => op_en_s,
                  ed_reg_en => ed_reg_en_s,
                  mexp_sel_top => mexp_sel_top_s,
@@ -119,6 +136,8 @@ begin
                  
                  shift_r_ctrl => shift_r_ctrl_s,
                  shift_r_d0 => shift_r_d0_s,
+                 shift_flag => shift_flag_s,
+                 
                  ba_en => ba_en_s,
                  ba_sel => ba_sel_s,
                  --ba_result => ba_result_s, --ba_result je verovatno suvisan signal
@@ -127,6 +146,8 @@ begin
                  norm_reg_d0 => nreg_d0_s,
                  round_en => round_en_s,
                  output_reg_en => oreg_en_s,
+                 res_sign => res_sign_s,
+                 
                  ed_val => ed_val_s,
                  round_rdy => round_rdy_s,
                  round_carry => round_carry_s,
