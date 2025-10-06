@@ -39,6 +39,7 @@ entity big_alu is
            op2 : in STD_LOGIC_VECTOR(WIDTH-1 downto 0);
            sel : in STD_LOGIC;
            en : in STD_LOGIC;
+           shift_flag : in STD_LOGIC;
            
            carry : out STD_LOGIC; --ovaj carry cu omoguciti kasnije
            result : out STD_LOGIC_VECTOR(WIDTH-1 downto 0));
@@ -61,8 +62,13 @@ begin
             
           else
             
-            --result <= std_logic_vector(unsigned(op1) + (not(unsigned(op2))+1));
-            result_s <= ('0' & unsigned(op1)) + (not('0' & unsigned(op2)) + 1);
+            if(shift_flag='0') then
+              --result <= std_logic_vector(unsigned(op1) + (not(unsigned(op2))+1));
+              --result_s <= ('0' & unsigned(op1)) + (not('0' & unsigned(op2)) + 1);
+              result_s <= ('1'&unsigned(op2))  -  ('1'&unsigned(op1));
+            else
+              result_s <= ('1'&unsigned(op2))  -  ('0'&unsigned(op1));
+            end if;
   
         end if;
         --carry <= std_logic(result_s(WIDTH)); --uzme msb kao carry out signal
