@@ -42,6 +42,11 @@ entity data_path_add is
         op1 : in STD_LOGIC_VECTOR(WIDTH-1 downto 0);
         op2 : in STD_LOGIC_VECTOR(WIDTH-1 downto 0);
         
+        op1_sign : out STD_LOGIC;
+        op1_fract : out STD_LOGIC_VECTOR(WIDTH_FRACT-1 downto 0);
+        op2_sign : out STD_LOGIC;
+        op2_fract : out STD_LOGIC_VECTOR(WIDTH_FRACT-1 downto 0);
+        
         op_reg_en : in STD_LOGIC;
         ed_reg_en : in STD_LOGIC;
         mexp_sel_top : in STD_LOGIC;
@@ -53,6 +58,7 @@ entity data_path_add is
         --round_ctrl : in STD_LOGIC_VECTOR(1 downto 0);
         shift_r_ctrl : in STD_LOGIC_VECTOR(1 downto 0);
         shift_r_d0 : in STD_LOGIC;
+        shift_flag : in STD_LOGIC;
         
         ba_en : in STD_LOGIC;
         ba_sel : in STD_LOGIC;
@@ -65,7 +71,7 @@ entity data_path_add is
         
         round_en : in STD_LOGIC;
         
-        
+        res_sign : in STD_LOGIC;
         output_reg_en : in STD_LOGIC;
         
         ed_val : out STD_LOGIC_VECTOR(WIDTH_EXP downto 0); --9 bits, 8 downto 0
@@ -109,7 +115,10 @@ begin
     
     ba_op_2_s <= fract_2_s; -- drugi operand za BIG ALU koji nije pomeran
 
-
+    op1_sign <= op1_s(WIDTH-1);
+    op1_fract <= op1_s(WIDTH_FRACT-1 downto 0);
+    op2_sign <= op2_s(WIDTH-1);
+    op2_fract <= op2_s(WIDTH_FRACT-1 downto 0);
 
     operand_1_reg: entity work.d_reg(Behavioral)
         generic map(WIDTH => WIDTH)
@@ -192,6 +201,7 @@ begin
         generic map(WIDTH => EXT_WIDTH_FRACT)
         port map(op1 => ba_op_1_s,
                  op2 => ba_op_2_s,
+                 shift_flag => shift_flag,
                  sel => ba_sel,
                  en => ba_en,
                  carry => ba_carry,
@@ -257,7 +267,7 @@ begin
                  round_carry => round_carry
         );
 
-    final_result_s <= '0' & round_exp_out_s & round_fract_res_s(EXT_WIDTH_FRACT-1 downto 3);
+    final_result_s <= res_sign & round_exp_out_s & round_fract_res_s(EXT_WIDTH_FRACT-1 downto 3);
 
     output_reg: entity work.d_reg(Behavioral)
         generic map(WIDTH => WIDTH)

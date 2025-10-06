@@ -33,9 +33,17 @@ use IEEE.numeric_std.all;
 --use UNISIM.VComponents.all;
 
 entity control_path_add is
+  Generic  (WIDTH_FRACT : positive := 23);
   Port (clk : in STD_LOGIC;
         rst : in STD_LOGIC;
         start : in STD_LOGIC;
+        
+        op1_sign : in STD_LOGIC;
+        op1_fract : in STD_LOGIC_VECTOR(WIDTH_FRACT-1 downto 0);
+        op2_sign : in STD_LOGIC;
+        op2_fract : in STD_LOGIC_VECTOR(WIDTH_FRACT-1 downto 0);
+        
+        
         
         operands_en : out STD_LOGIC; --enable signal for input registers
         
@@ -44,9 +52,12 @@ entity control_path_add is
         ed_reg_en : out STD_LOGIC; --enable signal za registar koji prihvata izlas small ALUa
         
         
-        
         shift_r_ctrl : out STD_LOGIC_VECTOR(1 downto 0);
         shift_r_d0 : out STD_LOGIC; --izlaz koji se povezuje na d0_fsm u shift registru
+        
+        
+        shift_flag : out STD_LOGIC; --flag koji se vodi u BIG_ALU i sa 1 oznacava da je bilo pomeranja operanada
+        
         
         mfract_1_sel : out STD_LOGIC;
         mfract_2_sel : out STD_LOGIC;
@@ -65,10 +76,10 @@ entity control_path_add is
         norm_reg_d0 : out STD_LOGIC;
         
         round_en : out STD_LOGIC;
-        --round_res : in STD_LOGIC_VECTOR(25 downto 0); --izgleda da se ovaj signal ne koristi NI ZA STA????!?!?!?!??! moguce d aje potreban samo carry u FSM !!!!
         round_carry : in STD_LOGIC;
         round_rdy : in STD_LOGIC;
         
+        res_sign : out STD_LOGIC;
         output_reg_en : out STD_LOGIC;
         rdy : out STD_LOGIC
         
@@ -76,12 +87,13 @@ entity control_path_add is
 end control_path_add;
 
 architecture Behavioral of control_path_add is
-    type add_state_type is (IDLE, LOAD, EXP_COMPARE_1, EXP_COMPARE_2, SHIFT_SMALLER, FRACTION_ADD, NORM, BUFF, ROUND, FINAL_CHECK, READY_STATE);
+    type add_state_type is (IDLE, LOAD, EXP_COMPARE_1, EXP_COMPARE_2, SHIFT_SMALLER, FRACTION_ADD, NORM, NORM_BUFF, ROUND, FINAL_CHECK, READY_STATE);
     signal state_next, state_reg : add_state_type;
     
     signal count_s, count_s_next : unsigned (7 downto 0) := (others=>'0');
     signal count_temp : unsigned (7 downto 0) := (others=>'0');
-    signal hidden_value : unsigned(1 downto 0) := (others=>'0'); --za sta mi je trebao ovaj signal?
+    signal hidden_value : unsigned(1 downto 0) := (others=>'0');
+    signal shift_flag_next : std_logic := '0';
 
 begin
 
@@ -92,6 +104,7 @@ begin
         else
           if(clk'event and clk='1') then
             count_s <= count_s_next;
+            shift_flag <= shift_flag_next;
             state_reg <= state_next;
           end if;
         end if;
@@ -127,6 +140,7 @@ begin
               --small_alu_en <= '1'; --ovaj signal je suvisan
               --ed_reg_en <= '1';
               operands_en <= '1';
+              shift_flag_next <= '0';
               state_next <= LOAD;
             else
               state_next <= IDLE;
@@ -144,8 +158,28 @@ begin
           
           when EXP_COMPARE_2 =>
             if(unsigned(ed_val)=0) then
-              mfract_1_sel <= '0'; --pusti frakciju iz op1
-              mfract_2_sel <= '1'; --pusti frakciju iz op2
+              -- EXP_1 = EXP_2
+              --pusti manju frakciju uvek u shift registar
+              if(unsigned(op1_fract) > unsigned(op2_fract)) then
+                mfract_1_sel <= '1'; --pusti frakciju iz op2 u shift registar
+                mfract_2_sel <= '0'; --pusti frakciju iz op1 u BIG_ALU
+                res_sign <= op1_sign; --dodeli rezultatu znak veceg po apsolutnoj vrednosti
+              elsif(unsigned(op1_fract) < unsigned(op2_fract)) then
+                mfract_1_sel <= '0'; --pusti frakciju iz op1 u shift registar
+                mfract_2_sel <= '1'; --pusti frakciju iz op2 u BIG_ALU
+                res_sign <= op2_sign; --dodeli rezultatu znak veceg po apsolutnoj vrednosti
+              else
+                --za slucaj da su i frakcije i eksponenti jednaki
+                mfract_1_sel <= '0'; --pusti frakciju iz op1 u shift registar
+                mfract_2_sel <= '1'; --pusti frakciju iz op2 u BIG_ALU
+                
+                if(op1_sign = op2_sign) then
+                  res_sign <= op2_sign; --uvek prosledjujem znak operanda koji ide u BIG_ALU
+                else
+                  res_sign <= '0'; --if op1=op2 and op1_sign!=op2_sign result is zero, and res_sign is 0 for positive zero
+                  --potrebno je setovati i eksponent na nulu jer je zapis nule u IEEE754  0  00000000  000 0000 0000 0000 0000 0000
+                end if;
+              end if;
               
               shift_r_ctrl <= "11"; --ucita vrednost u shift registar
               
@@ -153,19 +187,24 @@ begin
               mux_exp_sel_bot <= '0'; --selektuje eksponent iz ulaznog broja (sa '1' bi selektovao eksponent iz round bloka)
               inc_dec_ctrl <= "11"; --ucita vrednost selektovanog eksponenta
               
+              --vazi samo za sabiranje
               hidden_value <= "10";  --VREDNOST LEVO OD BINARNE TACKE AKO SU OPERANDI ISTOG EKSPONENTA
               
+              shift_flag_next <= '0';
               state_next <= FRACTION_ADD;
             else
               --OVDE ENABLUJE SHIFT_RIGHT REGISTAR I UCITA U NJEGA VREDNOST
+              shift_flag_next <= '1';
               shift_r_ctrl <= "11"; --"11" load value into shift reg
             
+              --vazi samo za sabiranje
               hidden_value <= "01"; --VREDNOST LEVO OD BINARNE TACKE AKO OPERANDI NISU ISTOG EKSPONENTA
               
               if(ed_val(8)='0') then --exponent difference value is positive 
                 -- op1 bigger than op2
                 mfract_1_sel <= '1'; --pusti frakciju iz op2 u shift_right registar jer je exp2 manji
                 mfract_2_sel <= '0'; --pusti frakciju iz op1 u BIG_ALU
+                res_sign <= op1_sign; --rezultat dobija znak veceg operanda
                 
                 count_s_next <= unsigned(ed_val(7 downto 0)); --sacuva se kao broj ciklusa koje ce biti pomerana vrednost u registru
                 
@@ -182,6 +221,7 @@ begin
                 -- op2 bigger than op1
                 mfract_1_sel <= '0'; --pusti frakciju iz op1 u shift_right registar jer je exp1 manji
                 mfract_2_sel <= '1'; --pusti frakciju iz op2 u BIG ALU
+                res_sign <= op2_sign; --rezultat dobija znak veceg operanda
                 
                 mux_exp_sel_top <= '0'; --pass exp of op1 for increment/decrement
                 mux_exp_sel_bot <= '0'; --pass exp from top
@@ -219,9 +259,17 @@ begin
             
           when FRACTION_ADD =>
             --u sabiranju treba ucitati vrednosti u big alu i dodati jos 2 bita da bi bilo moguce zaokruzivanje GUARD i ROUND bit
+            
+            if(op1_sign = op2_sign) then
+              big_alu_sel <= '0';
+              --res_sign <= op1_sign;
+            else
+              big_alu_sel <= '1';
+            end if;
+            
             big_alu_en <= '1';
             mres_sel <= '0';
-            --norm_reg_en <= '1';
+            
             norm_reg_ctrl <= "11"; --load big_alu result into normalization register
             if(big_alu_carry='0') then
               hidden_value <= hidden_value + 0; 
@@ -229,17 +277,7 @@ begin
               hidden_value <= hidden_value + 1;
             end if;
             state_next <= NORM;
-            --state_next <= ADD_BUFF;
-          
-          --when ADD_BUFF =>
-          --  big_alu_en <= '1';
-          --  if(big_alu_carry='0') then
-          --    hidden_value <= hidden_value + 0; 
-          --  else
-          --    hidden_value <= hidden_value + 1;
-          --  end if; 
-          --  state_next <= NORM;
-          
+            
           when NORM =>
           big_alu_en <= '1';
           --pri normalizaciji je potrebno uvecati eksponent !
@@ -248,19 +286,20 @@ begin
               when "10" =>
                 norm_reg_d0 <= '0';
                 hidden_value <= "01";
+                norm_reg_ctrl <= "10"; --shift right
+                inc_dec_ctrl <= "01"; --icrementing exp
               when "11" =>
                 norm_reg_d0 <= '1';
                 hidden_value <= "01";
+                norm_reg_ctrl <= "10"; --shift right
+                inc_dec_ctrl <= "01"; --icrementing exp
               when others =>
+                norm_reg_d0 <= '0';
                 norm_reg_ctrl <= "00";
             end case;
-            --norm_reg_en <= '1';
-            norm_reg_ctrl <= "10"; --shift right ?
-            inc_dec_ctrl <= "01"; --icrementing exp
-            --round_en <= '1';
-            state_next <= BUFF;
+            state_next <= NORM_BUFF;
             
-          when BUFF =>
+          when NORM_BUFF =>
             state_next <= ROUND;
             
           when ROUND =>
@@ -272,7 +311,6 @@ begin
             if(round_rdy = '1') then
               if(round_carry='1') then
                 hidden_value <= hidden_value + 1;
-                --norm_reg_en <= '1';
                 norm_reg_ctrl <= "00";
                 mres_sel <= '1';
                 state_next <= NORM;
