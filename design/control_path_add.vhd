@@ -48,7 +48,7 @@ entity control_path_add is
         operands_en : out STD_LOGIC; --enable signal for input registers
         
         ed_val : in STD_LOGIC_VECTOR(8 downto 0); --9 bita jer je signed vrednost
-        big_alu_carry : in STD_LOGIC;
+        big_alu_carry : in STD_LOGIC_VECTOR(1 downto 0);
         ed_reg_en : out STD_LOGIC; --enable signal za registar koji prihvata izlas small ALUa
         
         
@@ -188,7 +188,7 @@ begin
               inc_dec_ctrl <= "11"; --ucita vrednost selektovanog eksponenta
               
               --vazi samo za sabiranje
-              hidden_value <= "10";  --VREDNOST LEVO OD BINARNE TACKE AKO SU OPERANDI ISTOG EKSPONENTA
+              --hidden_value <= "10";  --VREDNOST LEVO OD BINARNE TACKE AKO SU OPERANDI ISTOG EKSPONENTA
               
               shift_flag_next <= '0';
               state_next <= FRACTION_ADD;
@@ -198,7 +198,7 @@ begin
               shift_r_ctrl <= "11"; --"11" load value into shift reg
             
               --vazi samo za sabiranje
-              hidden_value <= "01"; --VREDNOST LEVO OD BINARNE TACKE AKO OPERANDI NISU ISTOG EKSPONENTA
+              --hidden_value <= "01"; --VREDNOST LEVO OD BINARNE TACKE AKO OPERANDI NISU ISTOG EKSPONENTA
               
               if(ed_val(8)='0') then --exponent difference value is positive 
                 -- op1 bigger than op2
@@ -259,27 +259,26 @@ begin
             
           when FRACTION_ADD =>
             --u sabiranju treba ucitati vrednosti u big alu i dodati jos 2 bita da bi bilo moguce zaokruzivanje GUARD i ROUND bit
+            big_alu_en <= '1';
             
             if(op1_sign = op2_sign) then
               big_alu_sel <= '0';
-              --res_sign <= op1_sign;
             else
               big_alu_sel <= '1';
             end if;
             
-            big_alu_en <= '1';
             mres_sel <= '0';
-            
             norm_reg_ctrl <= "11"; --load big_alu result into normalization register
-            if(big_alu_carry='0') then
-              hidden_value <= hidden_value + 0; 
-            else
-              hidden_value <= hidden_value + 1;
-            end if;
+            hidden_value <= unsigned(big_alu_carry); --kada se promeni opet ce ga TRIGEROVATI OVDE SAM STAO OVAJ KOMENTAR OBRISI
+            --if(big_alu_carry='0') then
+            --  hidden_value <= hidden_value + 0; 
+            --else
+            --  hidden_value <= hidden_value + 1;
+            --end if;
             state_next <= NORM;
             
           when NORM =>
-          big_alu_en <= '1';
+          big_alu_en <= '1';--ovo je neophodno jer tek u ovom stanju normalizacioni registar moze ucitati vrednost
           --pri normalizaciji je potrebno uvecati eksponent !
           
             case hidden_value is

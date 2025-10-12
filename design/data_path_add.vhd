@@ -63,7 +63,7 @@ entity data_path_add is
         ba_en : in STD_LOGIC;
         ba_sel : in STD_LOGIC;
         --ba_result : out STD_LOGIC_VECTOR(WIDTH_FRACT + WIDTH_GRS - 1 downto 0); --JEDNAKO SA EXTENDED_WIDTH_FRACT-1
-        ba_carry : out STD_LOGIC;
+        ba_carry : out STD_LOGIC_VECTOR(1 downto 0);
         
         norm_reg_ctrl : in STD_LOGIC_VECTOR(1 downto 0);
         norm_reg_d0 : in STD_LOGIC;

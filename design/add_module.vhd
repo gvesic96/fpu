@@ -54,7 +54,7 @@ architecture Behavioral of add_module is
     signal ed_val_s : STD_LOGIC_VECTOR(WIDTH_EXP downto 0); --9 bits, 8 downto 0
     --signal big_alu_carry_s : STD_LOGIC;
     signal round_carry_s, round_rdy_s : STD_LOGIC;
-    signal ba_carry_s : STD_LOGIC;
+    signal ba_carry_s : STD_LOGIC_VECTOR(1 downto 0);
     signal op1_sign_s, op2_sign_s : STD_LOGIC;
     signal op1_fract_s, op2_fract_s : STD_LOGIC_VECTOR(WIDTH_FRACT-1 downto 0);
 
