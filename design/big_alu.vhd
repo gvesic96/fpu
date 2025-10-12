@@ -41,13 +41,14 @@ entity big_alu is
            en : in STD_LOGIC;
            shift_flag : in STD_LOGIC;
            
-           carry : out STD_LOGIC; --ovaj carry cu omoguciti kasnije
+           carry : out STD_LOGIC_VECTOR(1 downto 0); --ovaj carry cu omoguciti kasnije
            result : out STD_LOGIC_VECTOR(WIDTH-1 downto 0));
 end big_alu;
 
 architecture Behavioral of big_alu is
 
-    signal result_s: unsigned(WIDTH downto 0):= (others=>'0');  --uvodjenje ovog unutrasnjeg signala ce verovatno ubaciti latch kako bi memorisao stanje medjusignala?
+    --signal result_s ima 2 dodatna bita u odnosu na result zato sto je neophodno izracunati skrivenu vrednost
+    signal result_s: unsigned(WIDTH+1 downto 0):= (others=>'0');  --uvodjenje ovog unutrasnjeg signala ce verovatno ubaciti latch kako bi memorisao stanje medjusignala?
 
 begin
 
@@ -58,16 +59,23 @@ begin
         if(sel ='0') then
             
             --result <= std_logic_vector(unsigned(op1) + unsigned(op2));
-            result_s <= ('0' & unsigned(op1)) + ('0' & unsigned(op2));
+            
+            --result_s <= ('0' & unsigned(op1)) + ('0' & unsigned(op2));
+            
+            if(shift_flag = '0') then
+              result_s <= ("01"&unsigned(op1))  +  ("01"&unsigned(op2));
+            else
+              result_s <= ("00"&unsigned(op1))  +  ("01"&unsigned(op2));
+            end if;
             
           else
-            
-            if(shift_flag='0') then
+            --ALWAYS SUBTRACTING OP1 FROM OP2 because OP1 is always set to smaller shifted or not shifted, always smaller
+            if(shift_flag = '0') then
               --result <= std_logic_vector(unsigned(op1) + (not(unsigned(op2))+1));
               --result_s <= ('0' & unsigned(op1)) + (not('0' & unsigned(op2)) + 1);
-              result_s <= ('1'&unsigned(op2))  -  ('1'&unsigned(op1));
+              result_s <= ("01"&unsigned(op2))  -  ("01"&unsigned(op1));
             else
-              result_s <= ('1'&unsigned(op2))  -  ('0'&unsigned(op1));
+              result_s <= ("01"&unsigned(op2))  -  ("00"&unsigned(op1));
             end if;
   
         end if;
@@ -79,7 +87,8 @@ begin
       
     end process alu;
     
-    carry <= std_logic(result_s(WIDTH));
+    --carry <= std_logic(result_s(WIDTH));
+    carry <= std_logic_vector(result_s(WIDTH+1 downto WIDTH));
     result <= std_logic_vector(result_s(WIDTH-1 downto 0));
 
 end Behavioral;
