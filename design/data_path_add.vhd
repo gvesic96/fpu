@@ -67,6 +67,7 @@ entity data_path_add is
         
         norm_reg_ctrl : in STD_LOGIC_VECTOR(1 downto 0);
         norm_reg_d0 : in STD_LOGIC;
+        norm_reg_msb : out STD_LOGIC;
         --norm_reg_en : in STD_LOGIC; --SUVISAN SIGNAL? TREBA GA UKLONITI IZ Control_Patha ?
         
         round_en : in STD_LOGIC;
@@ -227,6 +228,7 @@ begin
                  d => norm_reg_in_s,
                  q => norm_reg_out_s
         );
+    norm_reg_msb <= norm_reg_out_s(EXT_WIDTH_FRACT-1); --MSB bit
 
     mux_exp_top: entity work.mux2on1(Behavioral)
         generic map(WIDTH => WIDTH_EXP)

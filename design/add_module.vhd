@@ -65,7 +65,7 @@ architecture Behavioral of add_module is
     signal ba_en_s, ba_sel_s : STD_LOGIC;
     signal shift_flag_s : STD_LOGIC;
     
-    signal nreg_d0_s : STD_LOGIC;
+    signal nreg_d0_s, nreg_msb_s : STD_LOGIC;
     signal round_en_s : STD_LOGIC;
     signal oreg_en_s : STD_LOGIC;
     signal res_sign_s : STD_LOGIC;
@@ -100,6 +100,7 @@ begin
                  mres_sel => mres_sel_s,
                  norm_reg_ctrl => nreg_ctrl_s,
                  norm_reg_d0 => nreg_d0_s,
+                 norm_msb => nreg_msb_s,
                  round_en => round_en_s,
                  round_rdy => round_rdy_s,
                  round_carry => round_carry_s,--iz data_patha u control_path
@@ -144,6 +145,7 @@ begin
                  ba_carry => ba_carry_s,
                  norm_reg_ctrl => nreg_ctrl_s,
                  norm_reg_d0 => nreg_d0_s,
+                 norm_reg_msb => nreg_msb_s,
                  round_en => round_en_s,
                  output_reg_en => oreg_en_s,
                  res_sign => res_sign_s,
