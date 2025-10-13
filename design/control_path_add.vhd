@@ -74,6 +74,7 @@ entity control_path_add is
         --norm_reg_en : out STD_LOGIC;
         norm_reg_ctrl : out STD_LOGIC_VECTOR(1 downto 0);
         norm_reg_d0 : out STD_LOGIC;
+        norm_msb : in STD_LOGIC;
         
         round_en : out STD_LOGIC;
         round_carry : in STD_LOGIC;
@@ -91,9 +92,11 @@ architecture Behavioral of control_path_add is
     signal state_next, state_reg : add_state_type;
     
     signal count_s, count_s_next : unsigned (7 downto 0) := (others=>'0');
+    signal n_count_s, n_count_s_next : unsigned (4 downto 0) := (others =>'0');
     signal count_temp : unsigned (7 downto 0) := (others=>'0');
     signal hidden_value : unsigned(1 downto 0) := (others=>'0');
     signal shift_flag_next : std_logic := '0';
+    signal op1_smaller_s, op1_smaller_next : std_logic := '1'; --signal that memorize which operand goes into SHIFT_R/BIG_ALU
 
 begin
 
@@ -104,13 +107,15 @@ begin
         else
           if(clk'event and clk='1') then
             count_s <= count_s_next;
+            n_count_s <= n_count_s_next;
             shift_flag <= shift_flag_next;
+            op1_smaller_s <= op1_smaller_next;
             state_reg <= state_next;
           end if;
         end if;
     end process state_proc;
 
-    control_proc: process(state_reg, start, big_alu_carry, count_s) is --za milijev automat treba dodati signale u sensitivity listu? DA
+    control_proc: process(state_reg, start, big_alu_carry, count_s, n_count_s) is --za milijev automat treba dodati signale u sensitivity listu? DA
       variable count_v : unsigned (8 downto 0) := (others=>'0');
     begin
         rdy <= '0'; --podrazumevana vrednost
@@ -161,15 +166,18 @@ begin
               -- EXP_1 = EXP_2
               --pusti manju frakciju uvek u shift registar
               if(unsigned(op1_fract) > unsigned(op2_fract)) then
+                op1_smaller_next <= '0';
                 mfract_1_sel <= '1'; --pusti frakciju iz op2 u shift registar
                 mfract_2_sel <= '0'; --pusti frakciju iz op1 u BIG_ALU
                 res_sign <= op1_sign; --dodeli rezultatu znak veceg po apsolutnoj vrednosti
               elsif(unsigned(op1_fract) < unsigned(op2_fract)) then
+                op1_smaller_next <= '1';
                 mfract_1_sel <= '0'; --pusti frakciju iz op1 u shift registar
                 mfract_2_sel <= '1'; --pusti frakciju iz op2 u BIG_ALU
                 res_sign <= op2_sign; --dodeli rezultatu znak veceg po apsolutnoj vrednosti
               else
                 --za slucaj da su i frakcije i eksponenti jednaki
+                op1_smaller_next <= '1';
                 mfract_1_sel <= '0'; --pusti frakciju iz op1 u shift registar
                 mfract_2_sel <= '1'; --pusti frakciju iz op2 u BIG_ALU
                 
@@ -202,6 +210,7 @@ begin
               
               if(ed_val(8)='0') then --exponent difference value is positive 
                 -- op1 bigger than op2
+                op1_smaller_next <= '0';
                 mfract_1_sel <= '1'; --pusti frakciju iz op2 u shift_right registar jer je exp2 manji
                 mfract_2_sel <= '0'; --pusti frakciju iz op1 u BIG_ALU
                 res_sign <= op1_sign; --rezultat dobija znak veceg operanda
@@ -219,6 +228,7 @@ begin
                 state_next <= SHIFT_SMALLER;
               else
                 -- op2 bigger than op1
+                op1_smaller_next <= '1';
                 mfract_1_sel <= '0'; --pusti frakciju iz op1 u shift_right registar jer je exp1 manji
                 mfract_2_sel <= '1'; --pusti frakciju iz op2 u BIG ALU
                 res_sign <= op2_sign; --rezultat dobija znak veceg operanda
@@ -241,6 +251,15 @@ begin
             shift_r_ctrl <= "10"; --shift right
             inc_dec_ctrl <= "01"; ----------- EXPONENT INCREMENT for shifting fraction right
             
+            --op1_smaller_s prevents returning mfract_selection values to default
+            if(op1_smaller_s = '1') then
+              mfract_1_sel <= '0';
+              mfract_2_sel <= '1';
+            else
+              mfract_1_sel <= '1';
+              mfract_2_sel <= '0';
+            end if;
+            
             --prvi shift unosi skrivenu jedinicu
             if(count_s = count_temp) then
               shift_r_d0 <= '1';
@@ -261,6 +280,15 @@ begin
             --u sabiranju treba ucitati vrednosti u big alu i dodati jos 2 bita da bi bilo moguce zaokruzivanje GUARD i ROUND bit
             big_alu_en <= '1';
             
+            --op1_smaller_s prevents returning mfract_selection values to default
+            if(op1_smaller_s = '1') then
+              mfract_1_sel <= '0';
+              mfract_2_sel <= '1';
+            else
+              mfract_1_sel <= '1';
+              mfract_2_sel <= '0';
+            end if;
+            
             if(op1_sign = op2_sign) then
               big_alu_sel <= '0';
             else
@@ -279,24 +307,52 @@ begin
             
           when NORM =>
           big_alu_en <= '1';--ovo je neophodno jer tek u ovom stanju normalizacioni registar moze ucitati vrednost
-          --pri normalizaciji je potrebno uvecati eksponent !
+          --op1_smaller_s prevents returning mfract_selection values to default
+          if(op1_smaller_s = '1') then
+            mfract_1_sel <= '0';
+            mfract_2_sel <= '1';
+          else
+            mfract_1_sel <= '1';
+            mfract_2_sel <= '0';
+          end if;
           
+          --pri normalizaciji je potrebno inkrementirati ili dekrementirati eksponent !          
             case hidden_value is
               when "10" =>
                 norm_reg_d0 <= '0';
                 hidden_value <= "01";
                 norm_reg_ctrl <= "10"; --shift right
                 inc_dec_ctrl <= "01"; --icrementing exp
+                state_next <= NORM_BUFF;
               when "11" =>
                 norm_reg_d0 <= '1';
                 hidden_value <= "01";
                 norm_reg_ctrl <= "10"; --shift right
                 inc_dec_ctrl <= "01"; --icrementing exp
+                state_next <= NORM_BUFF;
+              when "00" =>
+                --subtraction
+                norm_reg_d0 <= '0';
+                norm_reg_ctrl <= "01"; --shift left
+                inc_dec_ctrl <= "10"; --decrementing exp
+                if(n_count_s < 25) then
+                  state_next <= NORM;
+                  hidden_value <= '0' & norm_msb;
+                  n_count_s_next <= n_count_s_next + 1;
+                else
+                  state_next <= NORM_BUFF;
+                  norm_reg_d0 <= '0';
+                  norm_reg_ctrl <= "00";
+                  inc_dec_ctrl <= "00";  
+                end if;
+                
               when others =>
+                --hiddem value is 01 -> no need for shifting
                 norm_reg_d0 <= '0';
                 norm_reg_ctrl <= "00";
+                state_next <= NORM_BUFF;
             end case;
-            state_next <= NORM_BUFF;
+            --state_next <= NORM_BUFF;
             
           when NORM_BUFF =>
             state_next <= ROUND;
