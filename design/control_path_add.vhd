@@ -101,7 +101,7 @@ architecture Behavioral of control_path_add is
     signal shift_flag_next : std_logic := '0';
     signal op1_smaller_s, op1_smaller_next : std_logic := '1'; --signal that memorize which operand goes into SHIFT_R/BIG_ALU
     
-    signal op_zero_s, op_zero_next : std_logic := '0';
+    signal input_zero_s, input_zero_next : std_logic_vector(1 downto 0) := "11"; --signal for determining how many zeros are on input 00 01 10 11
 
 begin
 
@@ -115,7 +115,7 @@ begin
             n_count_s <= n_count_s_next;
             shift_flag <= shift_flag_next;
             op1_smaller_s <= op1_smaller_next;
-            op_zero_s <= op_zero_next;
+            input_zero_s <= input_zero_next;
             state_reg <= state_next;
           end if;
         end if;
@@ -162,9 +162,13 @@ begin
             ed_reg_en <= '1';
             --dodato za rad sa nulom
             if(unsigned(op1_exp)=0 or unsigned(op2_exp)=0) then
-              op_zero_next <= '1';
+              if(unsigned(op1_exp)=0 and unsigned(op2_exp)=0) then
+                input_zero_next <= "00";
+              else
+                input_zero_next <= "10";
+              end if;
             else
-              op_zero_next <= '0';
+              input_zero_next <= "11";
             end if;
             state_next <= EXP_COMPARE_1;
           
@@ -232,7 +236,7 @@ begin
                 --count_temp <= count_s; --da li je ovo neophodno??
                 --dodela je konkurentna on ce uzeti vrednost count_s = (others=>'0')
                 
-                if(op_zero_s = '1') then
+                if(input_zero_s = "10") then
                   mux_exp_sel_top <= '0'; --op2 has ZERO EXP and pass EXP of op1 into incr/decr circuit
                 else
                   mux_exp_sel_top <= '1'; --pass the exp of op2 for increment/decrement
@@ -248,7 +252,7 @@ begin
                 mfract_2_sel <= '1'; --pusti frakciju iz op2 u BIG ALU
                 res_sign <= op2_sign; --rezultat dobija znak veceg operanda
                 
-                if(op_zero_s = '1') then
+                if(input_zero_s = "10") then
                   mux_exp_sel_top <= '1'; --op1 has ZERO EXP and pass EXP of op2 into incr/decr circuit
                 else
                   mux_exp_sel_top <= '0'; --pass the exp of op1 for increment/decrement
@@ -269,7 +273,7 @@ begin
           when SHIFT_SMALLER =>
             --u ovom stanju treba da se vrti i da dekrementira brojac count_s do nule svaki takt da pomeri jednom frakciju i da dekrementira brojac
             shift_r_ctrl <= "10"; --shift right
-            if(op_zero_s = '1') then
+            if(input_zero_s = "10") then
               inc_dec_ctrl <= "00"; --if smaller operand is zero exponent then do not increment exponent because larger operand is filled in
             else  
               inc_dec_ctrl <= "01"; ----------- EXPONENT INCREMENT for shifting fraction right
@@ -285,10 +289,10 @@ begin
             
             --prvi shift unosi skrivenu jedinicu / nulu ako je jedan operand nula
             if(count_s = count_temp) then
-              if(op_zero_s = '1') then
-                shift_r_d0 <= '0'; --if one operand (smaller operand) is zero then shift 0 into the number
+              if(input_zero_s = "11") then
+                shift_r_d0 <= '1'; --if one operand (smaller operand) is zero then shift 0 into the number
               else
-                shift_r_d0 <= '1';
+                shift_r_d0 <= '0';
               end if;
             else
               shift_r_d0 <= '0';
@@ -299,7 +303,7 @@ begin
               inc_dec_ctrl <= "00";
               state_next <= FRACTION_ADD;
             else
-              if(op_zero_s = '1') then
+              if(input_zero_s = "10") then
                 count_s_next <= b"00000000";
               else
                 count_s_next <= count_s - 1;
@@ -309,7 +313,11 @@ begin
             
           when FRACTION_ADD =>
             --u sabiranju treba ucitati vrednosti u big alu i dodati jos 2 bita da bi bilo moguce zaokruzivanje GUARD i ROUND bit
-            big_alu_en <= '1';
+            if(input_zero_s = "00") then
+              big_alu_en <= '0';
+            else
+              big_alu_en <= '1';
+            end if;
             
             --op1_smaller_s prevents returning mfract_selection values to default
             if(op1_smaller_s = '1') then
@@ -329,15 +337,16 @@ begin
             mres_sel <= '0';
             norm_reg_ctrl <= "11"; --load big_alu result into normalization register
             hidden_value <= unsigned(big_alu_carry); --kada se promeni opet ce ga TRIGEROVATI OVDE SAM STAO OVAJ KOMENTAR OBRISI
-            --if(big_alu_carry='0') then
-            --  hidden_value <= hidden_value + 0; 
-            --else
-            --  hidden_value <= hidden_value + 1;
-            --end if;
+            
             state_next <= NORM;
             
           when NORM =>
-            big_alu_en <= '1';--ovo je neophodno jer tek u ovom stanju normalizacioni registar moze ucitati vrednost
+            if(input_zero_s = "00") then
+              big_alu_en <= '0';
+            else
+              big_alu_en <= '1';--ovo je neophodno jer tek u ovom stanju normalizacioni registar moze ucitati vrednost
+            end if;
+            
             --op1_smaller_s prevents returning mfract_selection values to default
             if(op1_smaller_s = '1') then
               mfract_1_sel <= '0';
@@ -362,18 +371,25 @@ begin
                 state_next <= NORM_BUFF;
               when "00" =>
                 --subtraction
-                norm_reg_d0 <= '0';
-                norm_reg_ctrl <= "01"; --shift left
-                inc_dec_ctrl <= "10"; --decrementing exp
-                if(n_count_s < 25) then
-                  state_next <= NORM;
-                  hidden_value <= '0' & norm_msb;
-                  n_count_s_next <= n_count_s_next + 1;
-                else
-                  state_next <= NORM_BUFF;
-                  norm_reg_d0 <= '0';
+                if(input_zero_s = "00") then
                   norm_reg_ctrl <= "00";
-                  inc_dec_ctrl <= "00";  
+                  inc_dec_ctrl <= "00";
+                  state_next <= NORM_BUFF;
+                else
+                  norm_reg_d0 <= '0';
+                  norm_reg_ctrl <= "01"; --shift left
+                  inc_dec_ctrl <= "10"; --decrementing exponent
+                
+                  if(n_count_s < 25) then
+                    state_next <= NORM;
+                    hidden_value <= '0' & norm_msb;
+                    n_count_s_next <= n_count_s_next + 1;
+                  else
+                    state_next <= NORM_BUFF;
+                    norm_reg_d0 <= '0';
+                    norm_reg_ctrl <= "00";
+                    inc_dec_ctrl <= "00";  
+                  end if;
                 end if;
                 
               when others =>
