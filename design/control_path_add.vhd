@@ -33,17 +33,20 @@ use IEEE.numeric_std.all;
 --use UNISIM.VComponents.all;
 
 entity control_path_add is
-  Generic  (WIDTH_FRACT : positive := 23);
+  Generic  (WIDTH_FRACT : positive := 23;
+            WIDTH_EXP : positive := 8
+            );
   Port (clk : in STD_LOGIC;
         rst : in STD_LOGIC;
         start : in STD_LOGIC;
         
         op1_sign : in STD_LOGIC;
         op1_fract : in STD_LOGIC_VECTOR(WIDTH_FRACT-1 downto 0);
+        op1_exp : in STD_LOGIC_VECTOR(WIDTH_EXP-1 downto 0);
+        
         op2_sign : in STD_LOGIC;
         op2_fract : in STD_LOGIC_VECTOR(WIDTH_FRACT-1 downto 0);
-        
-        
+        op2_exp : in STD_LOGIC_VECTOR(WIDTH_EXP-1 downto 0);
         
         operands_en : out STD_LOGIC; --enable signal for input registers
         
@@ -97,6 +100,8 @@ architecture Behavioral of control_path_add is
     signal hidden_value : unsigned(1 downto 0) := (others=>'0');
     signal shift_flag_next : std_logic := '0';
     signal op1_smaller_s, op1_smaller_next : std_logic := '1'; --signal that memorize which operand goes into SHIFT_R/BIG_ALU
+    
+    signal op_zero_s, op_zero_next : std_logic := '0';
 
 begin
 
@@ -110,6 +115,7 @@ begin
             n_count_s <= n_count_s_next;
             shift_flag <= shift_flag_next;
             op1_smaller_s <= op1_smaller_next;
+            op_zero_s <= op_zero_next;
             state_reg <= state_next;
           end if;
         end if;
@@ -154,6 +160,12 @@ begin
           when LOAD =>
             --operands_en <= '1';
             ed_reg_en <= '1';
+            --dodato za rad sa nulom
+            if(unsigned(op1_exp)=0 or unsigned(op2_exp)=0) then
+              op_zero_next <= '1';
+            else
+              op_zero_next <= '0';
+            end if;
             state_next <= EXP_COMPARE_1;
           
           when EXP_COMPARE_1 =>
@@ -195,12 +207,11 @@ begin
               mux_exp_sel_bot <= '0'; --selektuje eksponent iz ulaznog broja (sa '1' bi selektovao eksponent iz round bloka)
               inc_dec_ctrl <= "11"; --ucita vrednost selektovanog eksponenta
               
-              --vazi samo za sabiranje
-              --hidden_value <= "10";  --VREDNOST LEVO OD BINARNE TACKE AKO SU OPERANDI ISTOG EKSPONENTA
               
               shift_flag_next <= '0';
               state_next <= FRACTION_ADD;
             else
+            
               --OVDE ENABLUJE SHIFT_RIGHT REGISTAR I UCITA U NJEGA VREDNOST
               shift_flag_next <= '1';
               shift_r_ctrl <= "11"; --"11" load value into shift reg
@@ -221,10 +232,14 @@ begin
                 --count_temp <= count_s; --da li je ovo neophodno??
                 --dodela je konkurentna on ce uzeti vrednost count_s = (others=>'0')
                 
-                mux_exp_sel_top <= '1'; --pass the exp of op2 for increment/decrement
+                if(op_zero_s = '1') then
+                  mux_exp_sel_top <= '0'; --op2 has ZERO EXP and pass EXP of op1 into incr/decr circuit
+                else
+                  mux_exp_sel_top <= '1'; --pass the exp of op2 for increment/decrement
+                end if;
                 mux_exp_sel_bot <= '0';
                 inc_dec_ctrl <= "11";
-                
+                                
                 state_next <= SHIFT_SMALLER;
               else
                 -- op2 bigger than op1
@@ -233,7 +248,12 @@ begin
                 mfract_2_sel <= '1'; --pusti frakciju iz op2 u BIG ALU
                 res_sign <= op2_sign; --rezultat dobija znak veceg operanda
                 
-                mux_exp_sel_top <= '0'; --pass exp of op1 for increment/decrement
+                if(op_zero_s = '1') then
+                  mux_exp_sel_top <= '1'; --op1 has ZERO EXP and pass EXP of op2 into incr/decr circuit
+                else
+                  mux_exp_sel_top <= '0'; --pass the exp of op1 for increment/decrement
+                end if;
+                
                 mux_exp_sel_bot <= '0'; --pass exp from top
                 inc_dec_ctrl <= "11"; --load value into inc_dec module
                 
@@ -249,8 +269,11 @@ begin
           when SHIFT_SMALLER =>
             --u ovom stanju treba da se vrti i da dekrementira brojac count_s do nule svaki takt da pomeri jednom frakciju i da dekrementira brojac
             shift_r_ctrl <= "10"; --shift right
-            inc_dec_ctrl <= "01"; ----------- EXPONENT INCREMENT for shifting fraction right
-            
+            if(op_zero_s = '1') then
+              inc_dec_ctrl <= "00"; --if smaller operand is zero exponent then do not increment exponent because larger operand is filled in
+            else  
+              inc_dec_ctrl <= "01"; ----------- EXPONENT INCREMENT for shifting fraction right
+            end if;
             --op1_smaller_s prevents returning mfract_selection values to default
             if(op1_smaller_s = '1') then
               mfract_1_sel <= '0';
@@ -260,9 +283,13 @@ begin
               mfract_2_sel <= '0';
             end if;
             
-            --prvi shift unosi skrivenu jedinicu
+            --prvi shift unosi skrivenu jedinicu / nulu ako je jedan operand nula
             if(count_s = count_temp) then
-              shift_r_d0 <= '1';
+              if(op_zero_s = '1') then
+                shift_r_d0 <= '0'; --if one operand (smaller operand) is zero then shift 0 into the number
+              else
+                shift_r_d0 <= '1';
+              end if;
             else
               shift_r_d0 <= '0';
             end if;
@@ -272,7 +299,11 @@ begin
               inc_dec_ctrl <= "00";
               state_next <= FRACTION_ADD;
             else
-              count_s_next <= count_s - 1;
+              if(op_zero_s = '1') then
+                count_s_next <= b"00000000";
+              else
+                count_s_next <= count_s - 1;
+              end if;
               state_next <= SHIFT_SMALLER;
             end if;
             
@@ -306,17 +337,16 @@ begin
             state_next <= NORM;
             
           when NORM =>
-          big_alu_en <= '1';--ovo je neophodno jer tek u ovom stanju normalizacioni registar moze ucitati vrednost
-          --op1_smaller_s prevents returning mfract_selection values to default
-          if(op1_smaller_s = '1') then
-            mfract_1_sel <= '0';
-            mfract_2_sel <= '1';
-          else
-            mfract_1_sel <= '1';
-            mfract_2_sel <= '0';
-          end if;
-          
-          --pri normalizaciji je potrebno inkrementirati ili dekrementirati eksponent !          
+            big_alu_en <= '1';--ovo je neophodno jer tek u ovom stanju normalizacioni registar moze ucitati vrednost
+            --op1_smaller_s prevents returning mfract_selection values to default
+            if(op1_smaller_s = '1') then
+              mfract_1_sel <= '0';
+              mfract_2_sel <= '1';
+            else
+              mfract_1_sel <= '1';
+              mfract_2_sel <= '0';
+            end if;
+            --pri normalizaciji je potrebno inkrementirati ili dekrementirati eksponent !          
             case hidden_value is
               when "10" =>
                 norm_reg_d0 <= '0';
@@ -373,14 +403,13 @@ begin
                 output_reg_en <= '1';
                 state_next <= READY_STATE;
               end if;
-             else
+            else
                state_next <= FINAL_CHECK;
             end if;
             
           when READY_STATE =>
             rdy <= '1';
             state_next <= IDLE;
-            
             
           when others =>
             state_next <= IDLE;

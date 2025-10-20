@@ -41,7 +41,7 @@ entity big_alu is
            en : in STD_LOGIC;
            shift_flag : in STD_LOGIC;
            
-           carry : out STD_LOGIC_VECTOR(1 downto 0); --ovaj carry cu omoguciti kasnije
+           carry : out STD_LOGIC_VECTOR(1 downto 0); --carry signal koji sadrzi implicitnu vrednost - hidden value
            result : out STD_LOGIC_VECTOR(WIDTH-1 downto 0));
 end big_alu;
 

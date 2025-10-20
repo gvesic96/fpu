@@ -44,8 +44,11 @@ entity data_path_add is
         
         op1_sign : out STD_LOGIC;
         op1_fract : out STD_LOGIC_VECTOR(WIDTH_FRACT-1 downto 0);
+        op1_exp : out STD_LOGIC_VECTOR(WIDTH_EXP-1 downto 0);
+        
         op2_sign : out STD_LOGIC;
         op2_fract : out STD_LOGIC_VECTOR(WIDTH_FRACT-1 downto 0);
+        op2_exp : out STD_LOGIC_VECTOR(WIDTH_EXP-1 downto 0);
         
         op_reg_en : in STD_LOGIC;
         ed_reg_en : in STD_LOGIC;
@@ -114,12 +117,16 @@ begin
     exp_1_s <= op1_s(30 downto 23);
     exp_2_s <= op2_s(30 downto 23);
     
+    
     ba_op_2_s <= fract_2_s; -- drugi operand za BIG ALU koji nije pomeran
 
     op1_sign <= op1_s(WIDTH-1);
     op1_fract <= op1_s(WIDTH_FRACT-1 downto 0);
+    op1_exp <= exp_1_s;
+    
     op2_sign <= op2_s(WIDTH-1);
     op2_fract <= op2_s(WIDTH_FRACT-1 downto 0);
+    op2_exp <= exp_2_s;
 
     operand_1_reg: entity work.d_reg(Behavioral)
         generic map(WIDTH => WIDTH)
