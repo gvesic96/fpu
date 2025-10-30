@@ -78,6 +78,7 @@ entity control_path_add is
         norm_reg_ctrl : out STD_LOGIC_VECTOR(1 downto 0);
         norm_reg_d0 : out STD_LOGIC;
         norm_msb : in STD_LOGIC;
+        --norm_exp : in STD_LOGIC_VECTOR(7 downto 0);
         
         round_en : out STD_LOGIC;
         round_carry : in STD_LOGIC;
@@ -91,7 +92,7 @@ entity control_path_add is
 end control_path_add;
 
 architecture Behavioral of control_path_add is
-    type add_state_type is (IDLE, LOAD, EXP_COMPARE_1, EXP_COMPARE_2, SHIFT_SMALLER, FRACTION_ADD, NORM, NORM_BUFF, ROUND, FINAL_CHECK, READY_STATE);
+    type add_state_type is (IDLE, LOAD, EXP_COMPARE_1, EXP_COMPARE_2, SHIFT_SMALLER, FRACTION_ADD, NORM, NORM_BUFF, ROUND, FINAL_CHECK, RESULT_ZERO, READY_STATE);
     signal state_next, state_reg : add_state_type;
     
     signal count_s, count_s_next : unsigned (7 downto 0) := (others=>'0');
@@ -101,7 +102,7 @@ architecture Behavioral of control_path_add is
     signal shift_flag_next : std_logic := '0';
     signal op1_smaller_s, op1_smaller_next : std_logic := '1'; --signal that memorize which operand goes into SHIFT_R/BIG_ALU
     
-    signal input_zero_s, input_zero_next : std_logic_vector(1 downto 0) := "11"; --signal for determining how many zeros are on input 00 01 10 11
+    signal input_comb_s, input_comb_next : std_logic_vector(1 downto 0) := "11"; --signal for determining how many zeros are on input 00 01 10 11
 
 begin
 
@@ -109,13 +110,18 @@ begin
     begin
         if(rst='1') then
           state_reg <= IDLE;
+          count_s <= (others=>'0');
+          n_count_s <= (others=>'0');
+          shift_flag <= '0';
+          op1_smaller_s <= '0';
+          input_comb_s <= (others=>'0');
         else
           if(clk'event and clk='1') then
             count_s <= count_s_next;
             n_count_s <= n_count_s_next;
             shift_flag <= shift_flag_next;
             op1_smaller_s <= op1_smaller_next;
-            input_zero_s <= input_zero_next;
+            input_comb_s <= input_comb_next;
             state_reg <= state_next;
           end if;
         end if;
@@ -163,19 +169,23 @@ begin
             --dodato za rad sa nulom
             if(unsigned(op1_exp)=0 or unsigned(op2_exp)=0) then
               if(unsigned(op1_exp)=0 and unsigned(op2_exp)=0) then
-                input_zero_next <= "00";
+                input_comb_next <= "00";
               else
-                input_zero_next <= "10";
+                input_comb_next <= "10";
               end if;
             else
-              input_zero_next <= "11";
+              input_comb_next <= "11";
             end if;
             state_next <= EXP_COMPARE_1;
           
           when EXP_COMPARE_1 =>
             --small_alu_en <= '0'; --ovaj signal je suvisan
             ed_reg_en <= '0'; --keep loaded value
-            state_next <= EXP_COMPARE_2;
+            if(input_comb_s = "00") then
+              state_next <= RESULT_ZERO;
+            else
+              state_next <= EXP_COMPARE_2;
+            end if;          
           
           when EXP_COMPARE_2 =>
             if(unsigned(ed_val)=0) then
@@ -192,6 +202,7 @@ begin
                 mfract_2_sel <= '1'; --pusti frakciju iz op2 u BIG_ALU
                 res_sign <= op2_sign; --dodeli rezultatu znak veceg po apsolutnoj vrednosti
               else
+                --EXP1 = EXP2 and FRACT1 = FRACT2
                 --za slucaj da su i frakcije i eksponenti jednaki
                 op1_smaller_next <= '1';
                 mfract_1_sel <= '0'; --pusti frakciju iz op1 u shift registar
@@ -236,7 +247,7 @@ begin
                 --count_temp <= count_s; --da li je ovo neophodno??
                 --dodela je konkurentna on ce uzeti vrednost count_s = (others=>'0')
                 
-                if(input_zero_s = "10") then
+                if(input_comb_s = "10") then
                   mux_exp_sel_top <= '0'; --op2 has ZERO EXP and pass EXP of op1 into incr/decr circuit
                 else
                   mux_exp_sel_top <= '1'; --pass the exp of op2 for increment/decrement
@@ -252,7 +263,7 @@ begin
                 mfract_2_sel <= '1'; --pusti frakciju iz op2 u BIG ALU
                 res_sign <= op2_sign; --rezultat dobija znak veceg operanda
                 
-                if(input_zero_s = "10") then
+                if(input_comb_s = "10") then
                   mux_exp_sel_top <= '1'; --op1 has ZERO EXP and pass EXP of op2 into incr/decr circuit
                 else
                   mux_exp_sel_top <= '0'; --pass the exp of op1 for increment/decrement
@@ -273,7 +284,7 @@ begin
           when SHIFT_SMALLER =>
             --u ovom stanju treba da se vrti i da dekrementira brojac count_s do nule svaki takt da pomeri jednom frakciju i da dekrementira brojac
             shift_r_ctrl <= "10"; --shift right
-            if(input_zero_s = "10") then
+            if(input_comb_s = "10") then
               inc_dec_ctrl <= "00"; --if smaller operand is zero exponent then do not increment exponent because larger operand is filled in
             else  
               inc_dec_ctrl <= "01"; ----------- EXPONENT INCREMENT for shifting fraction right
@@ -289,7 +300,7 @@ begin
             
             --prvi shift unosi skrivenu jedinicu / nulu ako je jedan operand nula
             if(count_s = count_temp) then
-              if(input_zero_s = "11") then
+              if(input_comb_s = "11") then
                 shift_r_d0 <= '1'; --if one operand (smaller operand) is zero then shift 0 into the number
               else
                 shift_r_d0 <= '0';
@@ -303,7 +314,7 @@ begin
               inc_dec_ctrl <= "00";
               state_next <= FRACTION_ADD;
             else
-              if(input_zero_s = "10") then
+              if(input_comb_s = "10") then
                 count_s_next <= b"00000000";
               else
                 count_s_next <= count_s - 1;
@@ -313,7 +324,7 @@ begin
             
           when FRACTION_ADD =>
             --u sabiranju treba ucitati vrednosti u big alu i dodati jos 2 bita da bi bilo moguce zaokruzivanje GUARD i ROUND bit
-            if(input_zero_s = "00") then
+            if(input_comb_s = "00") then
               big_alu_en <= '0';
             else
               big_alu_en <= '1';
@@ -341,8 +352,8 @@ begin
             state_next <= NORM;
             
           when NORM =>
-            if(input_zero_s = "00") then
-              big_alu_en <= '0';
+            if(input_comb_s = "00") then
+              big_alu_en <= '0';--za slucaj da se sabiraju ili oduzimaju dve nule frakcije ce biti stavljena na nulu disableovanjem BIG_ALUa
             else
               big_alu_en <= '1';--ovo je neophodno jer tek u ovom stanju normalizacioni registar moze ucitati vrednost
             end if;
@@ -371,7 +382,7 @@ begin
                 state_next <= NORM_BUFF;
               when "00" =>
                 --subtraction
-                if(input_zero_s = "00") then
+                if(input_comb_s = "00") then
                   norm_reg_ctrl <= "00";
                   inc_dec_ctrl <= "00";
                   state_next <= NORM_BUFF;
@@ -380,6 +391,7 @@ begin
                   norm_reg_ctrl <= "01"; --shift left
                   inc_dec_ctrl <= "10"; --decrementing exponent
                 
+                  --NAKON 25 shiftovanja ukoliko ne pronadje jedinicu mora da ucita vrednost iz ROUND bloka u INCR_DECR blok kako bi se postavila vrednost EXP na nulu
                   if(n_count_s < 25) then
                     state_next <= NORM;
                     hidden_value <= '0' & norm_msb;
@@ -401,7 +413,12 @@ begin
             --state_next <= NORM_BUFF;
             
           when NORM_BUFF =>
-            state_next <= ROUND;
+            if(n_count_s = 25) then
+              round_en <= '0';
+              state_next <= RESULT_ZERO;
+            else
+              state_next <= ROUND;
+            end if;
             
           when ROUND =>
             round_en <= '1';
@@ -422,7 +439,14 @@ begin
             else
                state_next <= FINAL_CHECK;
             end if;
-            
+          
+          when RESULT_ZERO =>
+            --round block is disabled so its output is all zeros
+            --round_en <= '0';
+            --output_reg_en <= '1';
+            res_sign <= '0';
+            state_next <= READY_STATE;  
+          
           when READY_STATE =>
             rdy <= '1';
             state_next <= IDLE;

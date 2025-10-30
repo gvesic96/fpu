@@ -69,6 +69,7 @@ begin
       --round_val_s <= '0' & unsigned(fract_in(WIDTH_EXT_FRACT-1 downto 3)); --0 kao MSB na pocetku i visa 23 bita ulazne frakcije
     
       if(en='1') then
+        exp_out <= exp_in;
         case round_grs_s is
           --round to even
           when "100" =>
@@ -91,12 +92,14 @@ begin
         round_rdy <= '1';
       else
         round_rdy <= '0';
+        round_val_s2 <= (others=>'0');
+        exp_out <= (others=>'0');
       end if;
     end process;
 
     round_carry <= std_logic(round_val_s2(WIDTH_EXT_FRACT-WIDTH_GRS)); --carry out je potreban da se doda na hidden value, da bi se rezultat ponovo normalizovao
         --round_carry uzima 26-3=23 bit sto je MSB od round_val_s signala koji je 23 downto 0
     fract_out <= std_logic_vector(round_val_s2(WIDTH_EXT_FRACT-WIDTH_GRS-1 downto 0) & "000");
-    exp_out <= exp_in;
+    --exp_out <= exp_in;
 
 end Behavioral;
