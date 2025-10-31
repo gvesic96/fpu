@@ -99,28 +99,34 @@ architecture Behavioral of control_path_add is
     signal n_count_s, n_count_s_next : unsigned (4 downto 0) := (others =>'0');
     signal count_temp : unsigned (7 downto 0) := (others=>'0');
     signal hidden_value : unsigned(1 downto 0) := (others=>'0');
-    signal shift_flag_next : std_logic := '0';
+    signal shift_flag_next, shift_flag_s : std_logic := '0';
     signal op1_smaller_s, op1_smaller_next : std_logic := '1'; --signal that memorize which operand goes into SHIFT_R/BIG_ALU
     
     signal input_comb_s, input_comb_next : std_logic_vector(1 downto 0) := "11"; --signal for determining how many zeros are on input 00 01 10 11
+    signal res_sign_s, res_sign_next : std_logic := '0';
 
 begin
 
+    res_sign <= res_sign_s;
+    shift_flag <= shift_flag_s;
+    
     state_proc: process(clk, rst) is
     begin
         if(rst='1') then
           state_reg <= IDLE;
           count_s <= (others=>'0');
           n_count_s <= (others=>'0');
-          shift_flag <= '0';
+          shift_flag_s <= '0';
           op1_smaller_s <= '0';
+          res_sign_s <= '0';
           input_comb_s <= (others=>'0');
         else
           if(clk'event and clk='1') then
             count_s <= count_s_next;
             n_count_s <= n_count_s_next;
-            shift_flag <= shift_flag_next;
+            shift_flag_s <= shift_flag_next;
             op1_smaller_s <= op1_smaller_next;
+            res_sign_s <= res_sign_next;
             input_comb_s <= input_comb_next;
             state_reg <= state_next;
           end if;
@@ -148,7 +154,12 @@ begin
         shift_r_ctrl <= "00";
         shift_r_d0 <= '0';
         
-        --count_s_next <= (others=>'0');
+        count_s_next <= count_s;
+        n_count_s_next <= n_count_s;
+        shift_flag_next <= shift_flag_s;
+        op1_smaller_next <= op1_smaller_s;
+        res_sign_next <= res_sign_s;
+        input_comb_next <= input_comb_s;
         
         case state_reg is
           
@@ -182,6 +193,7 @@ begin
             --small_alu_en <= '0'; --ovaj signal je suvisan
             ed_reg_en <= '0'; --keep loaded value
             if(input_comb_s = "00") then
+              res_sign_next <= '0'; --set sign for output here to zero because skipping sign determination
               state_next <= RESULT_ZERO;
             else
               state_next <= EXP_COMPARE_2;
@@ -195,12 +207,12 @@ begin
                 op1_smaller_next <= '0';
                 mfract_1_sel <= '1'; --pusti frakciju iz op2 u shift registar
                 mfract_2_sel <= '0'; --pusti frakciju iz op1 u BIG_ALU
-                res_sign <= op1_sign; --dodeli rezultatu znak veceg po apsolutnoj vrednosti
+                res_sign_next <= op1_sign; --dodeli rezultatu znak veceg po apsolutnoj vrednosti
               elsif(unsigned(op1_fract) < unsigned(op2_fract)) then
                 op1_smaller_next <= '1';
                 mfract_1_sel <= '0'; --pusti frakciju iz op1 u shift registar
                 mfract_2_sel <= '1'; --pusti frakciju iz op2 u BIG_ALU
-                res_sign <= op2_sign; --dodeli rezultatu znak veceg po apsolutnoj vrednosti
+                res_sign_next <= op2_sign; --dodeli rezultatu znak veceg po apsolutnoj vrednosti
               else
                 --EXP1 = EXP2 and FRACT1 = FRACT2
                 --za slucaj da su i frakcije i eksponenti jednaki
@@ -209,9 +221,9 @@ begin
                 mfract_2_sel <= '1'; --pusti frakciju iz op2 u BIG_ALU
                 
                 if(op1_sign = op2_sign) then
-                  res_sign <= op2_sign; --uvek prosledjujem znak operanda koji ide u BIG_ALU
+                  res_sign_next <= op2_sign; --uvek prosledjujem znak operanda koji ide u BIG_ALU
                 else
-                  res_sign <= '0'; --if op1=op2 and op1_sign!=op2_sign result is zero, and res_sign is 0 for positive zero
+                  res_sign_next <= '0'; --if op1=op2 and op1_sign!=op2_sign result is zero, and res_sign is 0 for positive zero
                   --potrebno je setovati i eksponent na nulu jer je zapis nule u IEEE754  0  00000000  000 0000 0000 0000 0000 0000
                 end if;
               end if;
@@ -231,15 +243,12 @@ begin
               shift_flag_next <= '1';
               shift_r_ctrl <= "11"; --"11" load value into shift reg
             
-              --vazi samo za sabiranje
-              --hidden_value <= "01"; --VREDNOST LEVO OD BINARNE TACKE AKO OPERANDI NISU ISTOG EKSPONENTA
-              
               if(ed_val(8)='0') then --exponent difference value is positive 
                 -- op1 bigger than op2
                 op1_smaller_next <= '0';
                 mfract_1_sel <= '1'; --pusti frakciju iz op2 u shift_right registar jer je exp2 manji
                 mfract_2_sel <= '0'; --pusti frakciju iz op1 u BIG_ALU
-                res_sign <= op1_sign; --rezultat dobija znak veceg operanda
+                res_sign_next <= op1_sign; --rezultat dobija znak veceg operanda
                 
                 count_s_next <= unsigned(ed_val(7 downto 0)); --sacuva se kao broj ciklusa koje ce biti pomerana vrednost u registru
                 
@@ -261,7 +270,7 @@ begin
                 op1_smaller_next <= '1';
                 mfract_1_sel <= '0'; --pusti frakciju iz op1 u shift_right registar jer je exp1 manji
                 mfract_2_sel <= '1'; --pusti frakciju iz op2 u BIG ALU
-                res_sign <= op2_sign; --rezultat dobija znak veceg operanda
+                res_sign_next <= op2_sign; --rezultat dobija znak veceg operanda
                 
                 if(input_comb_s = "10") then
                   mux_exp_sel_top <= '1'; --op1 has ZERO EXP and pass EXP of op2 into incr/decr circuit
@@ -415,9 +424,11 @@ begin
           when NORM_BUFF =>
             if(n_count_s = 25) then
               round_en <= '0';
+              --res_sign_next <= '0'; not needed already set before
               state_next <= RESULT_ZERO;
             else
               state_next <= ROUND;
+              round_en <= '1';
             end if;
             
           when ROUND =>
@@ -426,6 +437,7 @@ begin
             
           when FINAL_CHECK =>
           --ROUND_RDY SIGNAL JE VEROVATNO NEPOTREBAN !!!! OBRATI PAZNJU
+            round_en <= '1';
             if(round_rdy = '1') then
               if(round_carry='1') then
                 hidden_value <= hidden_value + 1;
@@ -444,7 +456,7 @@ begin
             --round block is disabled so its output is all zeros
             --round_en <= '0';
             --output_reg_en <= '1';
-            res_sign <= '0';
+            --res_sign_next <= '0';
             state_next <= READY_STATE;  
           
           when READY_STATE =>
