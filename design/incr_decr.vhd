@@ -72,9 +72,10 @@ begin
           end if;
         end if;
         
-        result <= std_logic_vector(q_s);
+        --result <= std_logic_vector(q_s);
         
     end process increment_decrement_proc;
 
+    result <= std_logic_vector(q_s);
 
 end Behavioral;
