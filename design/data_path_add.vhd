@@ -72,6 +72,7 @@ entity data_path_add is
         norm_reg_d0 : in STD_LOGIC;
         norm_reg_msb : out STD_LOGIC;
         --norm_reg_en : in STD_LOGIC; --SUVISAN SIGNAL? TREBA GA UKLONITI IZ Control_Patha ?
+        norm_exp : out STD_LOGIC_VECTOR(WIDTH_EXP-1 downto 0);
         
         round_en : in STD_LOGIC;
         
@@ -261,6 +262,8 @@ begin
                  ctrl => inc_dec_ctrl,
                  result => round_exp_in_s
         );
+    
+    norm_exp <= round_exp_in_s;
 
     round_block: entity work.rounding_block(Behavioral)
         generic map(WIDTH_EXT_FRACT => WIDTH_FRACT + WIDTH_GRS,

@@ -78,7 +78,8 @@ entity control_path_add is
         norm_reg_ctrl : out STD_LOGIC_VECTOR(1 downto 0);
         norm_reg_d0 : out STD_LOGIC;
         norm_msb : in STD_LOGIC;
-        --norm_exp : in STD_LOGIC_VECTOR(7 downto 0);
+        
+        norm_exp : in STD_LOGIC_VECTOR(7 downto 0); --dodato za OVERFLOW/UNDERFLOW detekciju
         
         round_en : out STD_LOGIC;
         round_carry : in STD_LOGIC;
@@ -92,7 +93,7 @@ entity control_path_add is
 end control_path_add;
 
 architecture Behavioral of control_path_add is
-    type add_state_type is (IDLE, LOAD, EXP_COMPARE_1, EXP_COMPARE_2, SHIFT_SMALLER, FRACTION_ADD, NORM, NORM_BUFF, ROUND, FINAL_CHECK, RESULT_ZERO, READY_STATE);
+    type add_state_type is (IDLE, LOAD, EXP_COMPARE_1, EXP_COMPARE_2, SHIFT_SMALLER, FRACTION_ADD, NORM, NORM_BUFF, RESULT_OVERFLOW, ROUND, FINAL_CHECK, RESULT_ZERO, READY_STATE);
     signal state_next, state_reg : add_state_type;
     
     signal count_s, count_s_next : unsigned (7 downto 0) := (others=>'0');
@@ -109,6 +110,7 @@ begin
 
     res_sign <= res_sign_s;
     shift_flag <= shift_flag_s;
+    
     
     state_proc: process(clk, rst) is
     begin
@@ -362,6 +364,7 @@ begin
             
           when NORM =>
             if(input_comb_s = "00") then
+              --ova grana izgleda nije neophodna jer u slucaju da su na ulazu dve nule sve ovo ce biti preskoceno i automat ce preci u stanje RESULT_ZERO
               big_alu_en <= '0';--za slucaj da se sabiraju ili oduzimaju dve nule frakcije ce biti stavljena na nulu disableovanjem BIG_ALUa
             else
               big_alu_en <= '1';--ovo je neophodno jer tek u ovom stanju normalizacioni registar moze ucitati vrednost
@@ -375,51 +378,78 @@ begin
               mfract_1_sel <= '1';
               mfract_2_sel <= '0';
             end if;
-            --pri normalizaciji je potrebno inkrementirati ili dekrementirati eksponent !          
-            case hidden_value is
-              when "10" =>
-                norm_reg_d0 <= '0';
-                hidden_value <= "01";
-                norm_reg_ctrl <= "10"; --shift right
-                inc_dec_ctrl <= "01"; --icrementing exp
-                state_next <= NORM_BUFF;
-              when "11" =>
-                norm_reg_d0 <= '1';
-                hidden_value <= "01";
-                norm_reg_ctrl <= "10"; --shift right
-                inc_dec_ctrl <= "01"; --icrementing exp
-                state_next <= NORM_BUFF;
-              when "00" =>
-                --subtraction
-                if(input_comb_s = "00") then
-                  norm_reg_ctrl <= "00";
-                  inc_dec_ctrl <= "00";
-                  state_next <= NORM_BUFF;
-                else
-                  norm_reg_d0 <= '0';
-                  norm_reg_ctrl <= "01"; --shift left
-                  inc_dec_ctrl <= "10"; --decrementing exponent
+            
+            -- 3 cases of normalization register
+            case norm_exp is
+              
+              --when "11111111" =>
+              --  inc_dec_ctrl <= "00"; --hold value on 1111 1111
+              --  big_alu_en <= '0';
+              --  state_next <= RESULT_OVERFLOW;
+              
+              when "00000000" =>
+                --inc_dec_ctrl <= "00"; --nebitno
+                state_next <= RESULT_ZERO;
+              
+              when others =>
+                --ovde treba da se desava sve ostalo sto se inace desava ispitivanje HIDDEN_VALUE vrednosti itd
+                --pri normalizaciji je potrebno inkrementirati ili dekrementirati eksponent !          
+                case hidden_value is
+                  when "10" =>
+                    norm_reg_d0 <= '0';
+                    hidden_value <= "01";
+                    norm_reg_ctrl <= "10"; --shift right
+                    inc_dec_ctrl <= "01"; --icrementing exp
+                    if(norm_exp = "11111110") then
+                      state_next <= RESULT_OVERFLOW;
+                      --big_alu_en <= '0';
+                    else
+                      state_next <= NORM_BUFF;
+                    end if;
+                  when "11" =>
+                    norm_reg_d0 <= '1';
+                    hidden_value <= "01";
+                    norm_reg_ctrl <= "10"; --shift right
+                    inc_dec_ctrl <= "01"; --icrementing exp
+                    --state_next <= NORM_BUFF;
+                    if(norm_exp = "11111110") then
+                      state_next <= RESULT_OVERFLOW;
+                      --big_alu_en <= '0';
+                    else
+                      state_next <= NORM_BUFF;
+                    end if;
+                  when "00" =>
+                  --subtraction
+                    if(input_comb_s = "00") then
+                      norm_reg_ctrl <= "00";
+                      inc_dec_ctrl <= "00";
+                      state_next <= NORM_BUFF;
+                    else
+                      norm_reg_d0 <= '0';
+                      norm_reg_ctrl <= "01"; --shift left
+                      inc_dec_ctrl <= "10"; --decrementing exponent
                 
-                  --NAKON 25 shiftovanja ukoliko ne pronadje jedinicu mora da ucita vrednost iz ROUND bloka u INCR_DECR blok kako bi se postavila vrednost EXP na nulu
-                  if(n_count_s < 25) then
-                    state_next <= NORM;
-                    hidden_value <= '0' & norm_msb;
-                    n_count_s_next <= n_count_s_next + 1;
-                  else
-                    state_next <= NORM_BUFF;
+                      --NAKON 25 shiftovanja ukoliko ne pronadje jedinicu mora da ucita vrednost iz ROUND bloka u INCR_DECR blok kako bi se postavila vrednost EXP na nulu
+                      if(n_count_s < 25) then
+                        state_next <= NORM;
+                        hidden_value <= '0' & norm_msb;
+                        n_count_s_next <= n_count_s_next + 1;
+                      else
+                        state_next <= NORM_BUFF;
+                        norm_reg_d0 <= '0';
+                        norm_reg_ctrl <= "00";
+                        inc_dec_ctrl <= "00";  
+                      end if;
+                    end if;
+                  when others =>
+                  --hiddem value is 01 -> no need for shifting
                     norm_reg_d0 <= '0';
                     norm_reg_ctrl <= "00";
-                    inc_dec_ctrl <= "00";  
-                  end if;
-                end if;
-                
-              when others =>
-                --hiddem value is 01 -> no need for shifting
-                norm_reg_d0 <= '0';
-                norm_reg_ctrl <= "00";
-                state_next <= NORM_BUFF;
+                    state_next <= NORM_BUFF;
+                end case;
+            
             end case;
-            --state_next <= NORM_BUFF;
+            
             
           when NORM_BUFF =>
             if(n_count_s = 25) then
@@ -430,6 +460,12 @@ begin
               state_next <= ROUND;
               round_en <= '1';
             end if;
+            
+          when RESULT_OVERFLOW =>
+            big_alu_en <= '0';  
+            inc_dec_ctrl <= "00";
+            norm_reg_ctrl <= "11";
+            state_next <= NORM;
             
           when ROUND =>
             round_en <= '1';
