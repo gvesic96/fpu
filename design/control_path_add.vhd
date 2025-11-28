@@ -93,7 +93,7 @@ entity control_path_add is
 end control_path_add;
 
 architecture Behavioral of control_path_add is
-    type add_state_type is (IDLE, LOAD, EXP_COMPARE_1, EXP_COMPARE_2, SHIFT_SMALLER, FRACTION_ADD, NORM, NORM_BUFF, RESULT_OVERFLOW, ROUND, FINAL_CHECK, RESULT_ZERO, READY_STATE);
+    type add_state_type is (IDLE, LOAD_BUFF, INPUT_CHECK, EXP_COMPARE_1, EXP_COMPARE_2, SHIFT_SMALLER, FRACTION_ADD, NORM, NORM_BUFF, RESULT_OVERFLOW, ROUND, FINAL_CHECK, RESULT_ZERO, READY_STATE);
     signal state_next, state_reg : add_state_type;
     
     signal count_s, count_s_next : unsigned (7 downto 0) := (others=>'0');
@@ -108,6 +108,7 @@ architecture Behavioral of control_path_add is
 
 begin
 
+    --passing internal signal values to output signals
     res_sign <= res_sign_s;
     shift_flag <= shift_flag_s;
     
@@ -166,18 +167,20 @@ begin
         case state_reg is
           
           when IDLE =>
+            shift_flag_next <= '0';
             if(start='1') then
               --small_alu_en <= '1'; --ovaj signal je suvisan
-              --ed_reg_en <= '1';
               operands_en <= '1';
-              shift_flag_next <= '0';
-              state_next <= LOAD;
+              state_next <= LOAD_BUFF;
             else
               state_next <= IDLE;
             end if;
           
-          when LOAD =>
-            --operands_en <= '1';
+          when LOAD_BUFF =>
+            state_next <= INPUT_CHECK;
+          
+          --no sense in calling this state LOAD ????
+          when INPUT_CHECK =>
             ed_reg_en <= '1';
             --dodato za rad sa nulom
             if(unsigned(op1_exp)=0 or unsigned(op2_exp)=0) then
@@ -187,7 +190,17 @@ begin
                 input_comb_next <= "10";
               end if;
             else
-              input_comb_next <= "11";
+              --ovde da dodam kada je jedan operand +-inf a drugi realan broj ?
+              if(unsigned(op1_exp)=255 xor unsigned(op2_exp)=255) then
+                input_comb_next <= "10";
+              else
+                if(unsigned(op1_exp)=255 and unsigned(op2_exp)=255) then
+                  input_comb_next <= "01"; --situacija u kojoj su oba broja na ulazu +-inf   -> REZULTAT CE BITI NaN
+                else
+                  input_comb_next <= "11"; --situacija kad anijedan broj na ulazu nije +-inf a nije ni nula
+                end if;
+              end if;
+              --input_comb_next <= "11";
             end if;
             state_next <= EXP_COMPARE_1;
           
@@ -203,7 +216,7 @@ begin
           
           when EXP_COMPARE_2 =>
             if(unsigned(ed_val)=0) then
-              -- EXP_1 = EXP_2
+              --EXP_1 = EXP_2
               --pusti manju frakciju uvek u shift registar
               if(unsigned(op1_fract) > unsigned(op2_fract)) then
                 op1_smaller_next <= '0';
@@ -294,12 +307,19 @@ begin
             
           when SHIFT_SMALLER =>
             --u ovom stanju treba da se vrti i da dekrementira brojac count_s do nule svaki takt da pomeri jednom frakciju i da dekrementira brojac
-            shift_r_ctrl <= "10"; --shift right
+            
+            --shift_r_ctrl <= "10"; --shift right
+            --if(input_comb_s =)
+            
+            
             if(input_comb_s = "10") then
               inc_dec_ctrl <= "00"; --if smaller operand is zero exponent then do not increment exponent because larger operand is filled in
+              shift_r_ctrl <= "00"; --no need to shift smaller operand if smaller operand is zero
             else  
               inc_dec_ctrl <= "01"; ----------- EXPONENT INCREMENT for shifting fraction right
+              shift_r_ctrl <= "10"; --if smaller operand is not zero input 01 11 00 shift smaller operand right
             end if;
+            
             --op1_smaller_s prevents returning mfract_selection values to default
             if(op1_smaller_s = '1') then
               mfract_1_sel <= '0';
@@ -335,7 +355,7 @@ begin
             
           when FRACTION_ADD =>
             --u sabiranju treba ucitati vrednosti u big alu i dodati jos 2 bita da bi bilo moguce zaokruzivanje GUARD i ROUND bit
-            if(input_comb_s = "00") then
+            if(input_comb_s = "10") then
               big_alu_en <= '0';
             else
               big_alu_en <= '1';
@@ -363,7 +383,7 @@ begin
             state_next <= NORM;
             
           when NORM =>
-            if(input_comb_s = "00") then
+            if(input_comb_s = "10") then
               --ova grana izgleda nije neophodna jer u slucaju da su na ulazu dve nule sve ovo ce biti preskoceno i automat ce preci u stanje RESULT_ZERO
               big_alu_en <= '0';--za slucaj da se sabiraju ili oduzimaju dve nule frakcije ce biti stavljena na nulu disableovanjem BIG_ALUa
             else
@@ -396,6 +416,7 @@ begin
                 --pri normalizaciji je potrebno inkrementirati ili dekrementirati eksponent !          
                 case hidden_value is
                   when "10" =>
+                  --addition
                     norm_reg_d0 <= '0';
                     hidden_value <= "01";
                     norm_reg_ctrl <= "10"; --shift right
@@ -407,6 +428,7 @@ begin
                       state_next <= NORM_BUFF;
                     end if;
                   when "11" =>
+                  --addition
                     norm_reg_d0 <= '1';
                     hidden_value <= "01";
                     norm_reg_ctrl <= "10"; --shift right
@@ -420,7 +442,7 @@ begin
                     end if;
                   when "00" =>
                   --subtraction
-                    if(input_comb_s = "00") then
+                    if(input_comb_s = "10") then --ovde moze da stoji i "00"
                       norm_reg_ctrl <= "00";
                       inc_dec_ctrl <= "00";
                       state_next <= NORM_BUFF;
