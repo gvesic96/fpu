@@ -61,7 +61,7 @@ begin
     --ako je GUARD 0 onda se ostavlja kako jeste odno samo se odbacuju GRS biti TRUNCATE    
     
     round_grs_s <= unsigned(fract_in(2 downto 0));
-    round_val_s <= '0' & unsigned(fract_in(WIDTH_EXT_FRACT-1 downto 3)); --0 kao MSB na pocetku i visa 23 bita ulazne frakcije
+    round_val_s <= '0' & unsigned(fract_in(WIDTH_EXT_FRACT-1 downto 3)); --0 kao MSB na pocetku i visa 23 bita ulazne (prosirene) frakcije
     
     round_proc: process (en) is
     begin

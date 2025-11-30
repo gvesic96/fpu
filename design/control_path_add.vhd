@@ -102,6 +102,7 @@ architecture Behavioral of control_path_add is
     signal hidden_value : unsigned(1 downto 0) := (others=>'0');
     signal shift_flag_next, shift_flag_s : std_logic := '0';
     signal op1_smaller_s, op1_smaller_next : std_logic := '1'; --signal that memorize which operand goes into SHIFT_R/BIG_ALU
+    signal exp255_flag_s, exp255_flag_next : std_logic := '0'; --signal flag that notifies if at least one input exp is 255 (at least one input value inf)
     
     signal input_comb_s, input_comb_next : std_logic_vector(1 downto 0) := "11"; --signal for determining how many zeros are on input 00 01 10 11
     signal res_sign_s, res_sign_next : std_logic := '0';
@@ -123,6 +124,7 @@ begin
           op1_smaller_s <= '0';
           res_sign_s <= '0';
           input_comb_s <= (others=>'0');
+          exp255_flag_s <= '0';
         else
           if(clk'event and clk='1') then
             count_s <= count_s_next;
@@ -131,6 +133,7 @@ begin
             op1_smaller_s <= op1_smaller_next;
             res_sign_s <= res_sign_next;
             input_comb_s <= input_comb_next;
+            exp255_flag_s <= exp255_flag_next;
             state_reg <= state_next;
           end if;
         end if;
@@ -163,11 +166,13 @@ begin
         op1_smaller_next <= op1_smaller_s;
         res_sign_next <= res_sign_s;
         input_comb_next <= input_comb_s;
+        exp255_flag_next <= exp255_flag_s;
         
         case state_reg is
           
           when IDLE =>
             shift_flag_next <= '0';
+            exp255_flag_next <= '0';
             if(start='1') then
               --small_alu_en <= '1'; --ovaj signal je suvisan
               operands_en <= '1';
@@ -182,26 +187,43 @@ begin
           --no sense in calling this state LOAD ????
           when INPUT_CHECK =>
             ed_reg_en <= '1';
+            --detection of inf on input
+            if(unsigned(op1_exp)=255 or unsigned(op2_exp)=255) then
+              exp255_flag_next <= '1';
+            else
+              exp255_flag_next <= '0';
+            end if;
+            
+            if((unsigned(op1_exp)=255 and unsigned(op1_fract)>0) or (unsigned(op1_exp)=255 and unsigned(op1_fract)>0)) then
+              input_comb_next <= "01";
+            else
             --dodato za rad sa nulom
             if(unsigned(op1_exp)=0 or unsigned(op2_exp)=0) then
               if(unsigned(op1_exp)=0 and unsigned(op2_exp)=0) then
                 input_comb_next <= "00";
               else
+                --if()
                 input_comb_next <= "10";
               end if;
             else
-              --ovde da dodam kada je jedan operand +-inf a drugi realan broj ?
+              --ovde da dodam kada je jedan operand +-inf a drugi realan broj
               if(unsigned(op1_exp)=255 xor unsigned(op2_exp)=255) then
                 input_comb_next <= "10";
               else
                 if(unsigned(op1_exp)=255 and unsigned(op2_exp)=255) then
-                  input_comb_next <= "01"; --situacija u kojoj su oba broja na ulazu +-inf   -> REZULTAT CE BITI NaN
+                  if(op1_sign = op2_sign) then
+                    input_comb_next <= "10"; --situacija u kojoj su brojevi na ulazu (+inf +inf) ili (-inf -inf)
+                  else
+                    input_comb_next <= "01"; --situacija u kojoj su oba broja na ulazu inf, op1=-inf op2=+inf   -> REZULTAT CE BITI NaN
+                  end if;
                 else
-                  input_comb_next <= "11"; --situacija kad anijedan broj na ulazu nije +-inf a nije ni nula
+                  input_comb_next <= "11"; --situacija kad nijedan broj na ulazu nije +-inf a nije ni nula
                 end if;
               end if;
               --input_comb_next <= "11";
             end if;
+            
+            end if;-- OVO JE OD PRVOG TESTA ZA NaN
             state_next <= EXP_COMPARE_1;
           
           when EXP_COMPARE_1 =>
@@ -271,7 +293,7 @@ begin
                 --count_temp <= count_s; --da li je ovo neophodno??
                 --dodela je konkurentna on ce uzeti vrednost count_s = (others=>'0')
                 
-                if(input_comb_s = "10") then
+                if(input_comb_s="10" or input_comb_s="01") then --"10" for inf "01" for NaN
                   mux_exp_sel_top <= '0'; --op2 has ZERO EXP and pass EXP of op1 into incr/decr circuit
                 else
                   mux_exp_sel_top <= '1'; --pass the exp of op2 for increment/decrement
@@ -355,7 +377,7 @@ begin
             
           when FRACTION_ADD =>
             --u sabiranju treba ucitati vrednosti u big alu i dodati jos 2 bita da bi bilo moguce zaokruzivanje GUARD i ROUND bit
-            if(input_comb_s = "10") then
+            if((input_comb_s = "10" and exp255_flag_s='1') or input_comb_s="01") then
               big_alu_en <= '0';
             else
               big_alu_en <= '1';
@@ -383,9 +405,8 @@ begin
             state_next <= NORM;
             
           when NORM =>
-            if(input_comb_s = "10") then
-              --ova grana izgleda nije neophodna jer u slucaju da su na ulazu dve nule sve ovo ce biti preskoceno i automat ce preci u stanje RESULT_ZERO
-              big_alu_en <= '0';--za slucaj da se sabiraju ili oduzimaju dve nule frakcije ce biti stavljena na nulu disableovanjem BIG_ALUa
+            if((input_comb_s = "10" and exp255_flag_s='1') or input_comb_s="01") then
+              big_alu_en <= '0';
             else
               big_alu_en <= '1';--ovo je neophodno jer tek u ovom stanju normalizacioni registar moze ucitati vrednost
             end if;
@@ -442,8 +463,13 @@ begin
                     end if;
                   when "00" =>
                   --subtraction
-                    if(input_comb_s = "10") then --ovde moze da stoji i "00"
+                    if(input_comb_s = "10") then --ovde moze da stoji ...or input_comb_s="00"... ?
                       norm_reg_ctrl <= "00";
+                      inc_dec_ctrl <= "00";
+                      state_next <= NORM_BUFF;
+                    elsif(input_comb_s = "01") then
+                      norm_reg_d0 <= '1';
+                      norm_reg_ctrl <= "10";
                       inc_dec_ctrl <= "00";
                       state_next <= NORM_BUFF;
                     else
@@ -475,12 +501,12 @@ begin
             
           when NORM_BUFF =>
             if(n_count_s = 25) then
-              round_en <= '0';
+              --round_en <= '0';
               --res_sign_next <= '0'; not needed already set before
               state_next <= RESULT_ZERO;
             else
               state_next <= ROUND;
-              round_en <= '1';
+              --round_en <= '1';
             end if;
             
           when RESULT_OVERFLOW =>
