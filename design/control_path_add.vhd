@@ -96,10 +96,25 @@ architecture Behavioral of control_path_add is
     type add_state_type is (IDLE, LOAD_BUFF, INPUT_CHECK, EXP_COMPARE_1, EXP_COMPARE_2, SHIFT_SMALLER, FRACTION_ADD, NORM, NORM_BUFF, RESULT_OVERFLOW, ROUND, FINAL_CHECK, RESULT_ZERO, READY_STATE);
     signal state_next, state_reg : add_state_type;
     
+	--constant IDLE          : add_state_type := IDLE;
+	--constant LOAD_BUFF     : add_state_type := LOAD_BUFF;
+	--constant INPUT_CHECK   : add_state_type := INPUT_CHECK;
+	--constant EXP_COMPARE_1 : add_state_type := EXP_COMPARE_1;
+	--constant EXP_COMPARE_2 : add_state_type := EXP_COMPARE_2;
+	--constant SHIFT_SMALLER : add_state_type := SHIFT_SMALLER;
+	--constant FRACTION_ADD  : add_state_type := FRACTION_ADD;
+	--constant NORM          : add_state_type := NORM;
+	--constant NORM_BUFF     : add_state_type := NORM_BUFF;
+	--constant RESULT_OVERFLOW : add_state_type := RESULT_OVERFLOW;
+	--constant ROUND         : add_state_type := ROUND;
+	--constant FINAL_CHECK   : add_state_type := FINAL_CHECK;
+	--constant RESULT_ZERO   : add_state_type := RESULT_ZERO;
+	--constant READY_STATE   : add_state_type := READY_STATE;
+
     signal count_s, count_s_next : unsigned (7 downto 0) := (others=>'0');
     signal n_count_s, n_count_s_next : unsigned (4 downto 0) := (others =>'0');
     signal count_temp : unsigned (7 downto 0) := (others=>'0');
-    signal hidden_value : unsigned(1 downto 0) := (others=>'0');
+    signal hidden_value, hidden_value_next : unsigned(1 downto 0) := (others=>'0');
     signal shift_flag_next, shift_flag_s : std_logic := '0';
     signal op1_smaller_s, op1_smaller_next : std_logic := '1'; --signal that memorize which operand goes into SHIFT_R/BIG_ALU
     signal exp255_flag_s, exp255_flag_next : std_logic := '0'; --signal flag that notifies if at least one input exp is 255 (at least one input value inf)
@@ -125,6 +140,7 @@ begin
           res_sign_s <= '0';
           input_comb_s <= (others=>'0');
           exp255_flag_s <= '0';
+	  hidden_value <= (others => '0');
         else
           if(clk'event and clk='1') then
             count_s <= count_s_next;
@@ -135,6 +151,7 @@ begin
             input_comb_s <= input_comb_next;
             exp255_flag_s <= exp255_flag_next;
             state_reg <= state_next;
+	    hidden_value <= hidden_value_next;
           end if;
         end if;
     end process state_proc;
@@ -161,13 +178,14 @@ begin
         shift_r_d0 <= '0';
         
         count_s_next <= count_s;
-        n_count_s_next <= n_count_s;
+        n_count_s_next <= n_count_s; --ovaj signal je uklonjen zbog pravljenja petlje sto je detektovao jasperGold
         shift_flag_next <= shift_flag_s;
         op1_smaller_next <= op1_smaller_s;
         res_sign_next <= res_sign_s;
         input_comb_next <= input_comb_s;
         exp255_flag_next <= exp255_flag_s;
-        
+	hidden_value_next <= hidden_value;        
+
         case state_reg is
           
           when IDLE =>
@@ -184,7 +202,6 @@ begin
           when LOAD_BUFF =>
             state_next <= INPUT_CHECK;
           
-          --no sense in calling this state LOAD ????
           when INPUT_CHECK =>
             ed_reg_en <= '1';
             --detection of inf on input
@@ -400,7 +417,7 @@ begin
             
             mres_sel <= '0';
             norm_reg_ctrl <= "11"; --load big_alu result into normalization register
-            hidden_value <= unsigned(big_alu_carry); --kada se promeni opet ce ga TRIGEROVATI OVDE SAM STAO OVAJ KOMENTAR OBRISI
+            hidden_value_next <= unsigned(big_alu_carry); --kada se promeni opet ce ga TRIGEROVATI OVDE SAM STAO OVAJ KOMENTAR OBRISI
             
             state_next <= NORM;
             
@@ -439,7 +456,7 @@ begin
                   when "10" =>
                   --addition
                     norm_reg_d0 <= '0';
-                    hidden_value <= "01";
+                    hidden_value_next <= "01";
                     norm_reg_ctrl <= "10"; --shift right
                     inc_dec_ctrl <= "01"; --icrementing exp
                     if(norm_exp = "11111110") then
@@ -451,7 +468,7 @@ begin
                   when "11" =>
                   --addition
                     norm_reg_d0 <= '1';
-                    hidden_value <= "01";
+                    hidden_value_next <= "01";
                     norm_reg_ctrl <= "10"; --shift right
                     inc_dec_ctrl <= "01"; --icrementing exp
                     --state_next <= NORM_BUFF;
@@ -480,8 +497,8 @@ begin
                       --NAKON 25 shiftovanja ukoliko ne pronadje jedinicu mora da ucita vrednost iz ROUND bloka u INCR_DECR blok kako bi se postavila vrednost EXP na nulu
                       if(n_count_s < 25) then
                         state_next <= NORM;
-                        hidden_value <= '0' & norm_msb;
-                        n_count_s_next <= n_count_s_next + 1;
+                        hidden_value_next <= '0' & norm_msb;
+                        n_count_s_next <= n_count_s + 1; --problem je ako je dodela n_count_s_next <= n_count_s_next + 1; kreira se petlja Detektovao Jasper. Zasto se u tom slucaju kreira petlja???
                       else
                         state_next <= NORM_BUFF;
                         norm_reg_d0 <= '0';
@@ -490,7 +507,7 @@ begin
                       end if;
                     end if;
                   when others =>
-                  --hiddem value is 01 -> no need for shifting
+                  --hidden value is 01 -> no need for shifting
                     norm_reg_d0 <= '0';
                     norm_reg_ctrl <= "00";
                     state_next <= NORM_BUFF;
@@ -524,7 +541,7 @@ begin
             round_en <= '1';
             if(round_rdy = '1') then
               if(round_carry='1') then
-                hidden_value <= hidden_value + 1;
+                hidden_value_next <= hidden_value + 1;
                 norm_reg_ctrl <= "00";
                 mres_sel <= '1';
                 state_next <= NORM;
