@@ -34,6 +34,6 @@ add_files -norecurse ./design/add_module.vhd
 update_compile_order -fileset sources_1
 
 set_property SOURCE_SET sources_1 [get_filesets sim_1]
-add_files -fileset sim_1 -norecurse ./fpu_tb/fpu_add_tb.vhd
+add_files -fileset sim_1 -norecurse ./sim_1/new/fpu_add_tb.vhd
 
 update_compile_order -fileset sim_1
