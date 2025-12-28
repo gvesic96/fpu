@@ -542,7 +542,7 @@ begin
             if(round_rdy = '1') then
               if(round_carry='1') then
                 hidden_value_next <= hidden_value + 1;
-                norm_reg_ctrl <= "00";
+                norm_reg_ctrl <= "11"; --bilo je 00
                 mres_sel <= '1';
                 state_next <= NORM;
               else
