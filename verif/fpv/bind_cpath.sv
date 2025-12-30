@@ -7,5 +7,8 @@ bind control_path_add checker_cpath c1(.clk(clk),
 					.count_s(count_s),
 					.input_comb_s(input_comb_s),
 					.norm_exp(norm_exp),
-					.hidden_value(hidden_value)
+					.hidden_value(hidden_value),
+					.n_count_s(n_count_s),
+					.round_carry(round_carry),
+					.round_rdy(round_rdy)
 );
