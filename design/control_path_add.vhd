@@ -542,7 +542,7 @@ begin
             if(round_rdy = '1') then
               if(round_carry='1') then
                 hidden_value_next <= hidden_value + 1;
-                norm_reg_ctrl <= "11"; --bilo je 00
+                norm_reg_ctrl <= "11"; --bilo je 00 sto je hold value, potrebno je 11 za load vrednosti u norm_reg
                 mres_sel <= '1';
                 state_next <= NORM;
               else
@@ -550,7 +550,7 @@ begin
                 state_next <= READY_STATE;
               end if;
             else
-               state_next <= FINAL_CHECK;
+               state_next <= ROUND;
             end if;
           
           when RESULT_ZERO =>
