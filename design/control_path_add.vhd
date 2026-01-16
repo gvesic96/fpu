@@ -219,7 +219,6 @@ begin
               if(unsigned(op1_exp)=0 and unsigned(op2_exp)=0) then
                 input_comb_next <= "00";
               else
-                --if()
                 input_comb_next <= "10";
               end if;
             else
@@ -293,7 +292,7 @@ begin
               state_next <= FRACTION_ADD;
             else
             
-              --OVDE ENABLUJE SHIFT_RIGHT REGISTAR I UCITA U NJEGA VREDNOST
+              --exponent difference not zero
               shift_flag_next <= '1';
               shift_r_ctrl <= "11"; --"11" load value into shift reg
             
@@ -326,7 +325,7 @@ begin
                 mfract_2_sel <= '1'; --pusti frakciju iz op2 u BIG ALU
                 res_sign_next <= op2_sign; --rezultat dobija znak veceg operanda
                 
-                if(input_comb_s = "10") then
+                if(input_comb_s = "10" or input_comb_s="01") then
                   mux_exp_sel_top <= '1'; --op1 has ZERO EXP and pass EXP of op2 into incr/decr circuit
                 else
                   mux_exp_sel_top <= '0'; --pass the exp of op1 for increment/decrement
@@ -351,7 +350,7 @@ begin
             --if(input_comb_s =)
             
             
-            if(input_comb_s = "10") then
+            if(input_comb_s = "10" or input_comb_s="01") then
               inc_dec_ctrl <= "00"; --if smaller operand is zero exponent then do not increment exponent because larger operand is filled in
               shift_r_ctrl <= "00"; --no need to shift smaller operand if smaller operand is zero
             else  
@@ -384,7 +383,7 @@ begin
               inc_dec_ctrl <= "00";
               state_next <= FRACTION_ADD;
             else
-              if(input_comb_s = "10") then
+              if(input_comb_s = "10" or input_comb_s="01") then
                 count_s_next <= b"00000000";
               else
                 count_s_next <= count_s - 1;
@@ -542,7 +541,7 @@ begin
             if(round_rdy = '1') then
               if(round_carry='1') then
                 hidden_value_next <= hidden_value + 1;
-                norm_reg_ctrl <= "11"; --bilo je 00 sto je hold value, potrebno je 11 za load vrednosti u norm_reg
+                norm_reg_ctrl <= "11"; --bilo je 00
                 mres_sel <= '1';
                 state_next <= NORM;
               else
@@ -550,7 +549,7 @@ begin
                 state_next <= READY_STATE;
               end if;
             else
-               state_next <= ROUND;
+               state_next <= FINAL_CHECK;
             end if;
           
           when RESULT_ZERO =>
