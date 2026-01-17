@@ -93,7 +93,7 @@ entity control_path_add is
 end control_path_add;
 
 architecture Behavioral of control_path_add is
-    type add_state_type is (IDLE, LOAD_BUFF, INPUT_CHECK, EXP_COMPARE_1, EXP_COMPARE_2, SHIFT_SMALLER, FRACTION_ADD, NORM, NORM_BUFF, RESULT_OVERFLOW, ROUND, FINAL_CHECK, RESULT_ZERO, READY_STATE);
+    type add_state_type is (IDLE, LOAD_BUFF, INPUT_CHECK, EXP_COMPARE, SHIFT_SMALLER, FRACTION_ADD, NORM, NORM_BUFF, RESULT_OVERFLOW, ROUND, FINAL_CHECK, RESULT_ZERO, READY_STATE);
     signal state_next, state_reg : add_state_type;
     
 	--constant IDLE          : add_state_type := IDLE;
@@ -240,109 +240,106 @@ begin
             end if;
             
             end if;-- OVO JE OD PRVOG TESTA ZA NaN
-            state_next <= EXP_COMPARE_1;
+            state_next <= EXP_COMPARE;          
           
-          when EXP_COMPARE_1 =>
-            --small_alu_en <= '0'; --ovaj signal je suvisan
-            ed_reg_en <= '0'; --keep loaded value
-            if(input_comb_s = "00") then
-              res_sign_next <= '0'; --set sign for output here to zero because skipping sign determination
-              state_next <= RESULT_ZERO;
-            else
-              state_next <= EXP_COMPARE_2;
-            end if;          
-          
-          when EXP_COMPARE_2 =>
-            if(unsigned(ed_val)=0) then
-              --EXP_1 = EXP_2
-              --pusti manju frakciju uvek u shift registar
-              if(unsigned(op1_fract) > unsigned(op2_fract)) then
-                op1_smaller_next <= '0';
-                mfract_1_sel <= '1'; --pusti frakciju iz op2 u shift registar
-                mfract_2_sel <= '0'; --pusti frakciju iz op1 u BIG_ALU
-                res_sign_next <= op1_sign; --dodeli rezultatu znak veceg po apsolutnoj vrednosti
-              elsif(unsigned(op1_fract) < unsigned(op2_fract)) then
-                op1_smaller_next <= '1';
-                mfract_1_sel <= '0'; --pusti frakciju iz op1 u shift registar
-                mfract_2_sel <= '1'; --pusti frakciju iz op2 u BIG_ALU
-                res_sign_next <= op2_sign; --dodeli rezultatu znak veceg po apsolutnoj vrednosti
-              else
-                --EXP1 = EXP2 and FRACT1 = FRACT2
-                --za slucaj da su i frakcije i eksponenti jednaki
-                op1_smaller_next <= '1';
-                mfract_1_sel <= '0'; --pusti frakciju iz op1 u shift registar
-                mfract_2_sel <= '1'; --pusti frakciju iz op2 u BIG_ALU
-                
-                if(op1_sign = op2_sign) then
-                  res_sign_next <= op2_sign; --uvek prosledjujem znak operanda koji ide u BIG_ALU
-                else
-                  res_sign_next <= '0'; --if op1=op2 and op1_sign!=op2_sign result is zero, and res_sign is 0 for positive zero
-                  --potrebno je setovati i eksponent na nulu jer je zapis nule u IEEE754  0  00000000  000 0000 0000 0000 0000 0000
-                end if;
-              end if;
-              
-              shift_r_ctrl <= "11"; --ucita vrednost u shift registar
-              
-              mux_exp_sel_top <= '0'; --selektuje eksponent op1 (moze i '1' za op2 svejedno je jer su jednaki)
-              mux_exp_sel_bot <= '0'; --selektuje eksponent iz ulaznog broja (sa '1' bi selektovao eksponent iz round bloka)
-              inc_dec_ctrl <= "11"; --ucita vrednost selektovanog eksponenta
-              
-              
-              shift_flag_next <= '0';
-              state_next <= FRACTION_ADD;
-            else
+          when EXP_COMPARE =>
+            case input_comb_s is
+              when "00" =>
+                res_sign_next <= '0'; --set sign for output here to zero because skipping sign determination
+                state_next <= RESULT_ZERO;
+              when others =>
             
-              --exponent difference not zero
-              shift_flag_next <= '1';
-              shift_r_ctrl <= "11"; --"11" load value into shift reg
-            
-              if(ed_val(8)='0') then --exponent difference value is positive 
-                -- op1 bigger than op2
-                op1_smaller_next <= '0';
-                mfract_1_sel <= '1'; --pusti frakciju iz op2 u shift_right registar jer je exp2 manji
-                mfract_2_sel <= '0'; --pusti frakciju iz op1 u BIG_ALU
-                res_sign_next <= op1_sign; --rezultat dobija znak veceg operanda
+                if(unsigned(ed_val)=0) then
+                  --EXP_1 = EXP_2
+                  --pusti manju frakciju uvek u shift registar
+                  if(unsigned(op1_fract) > unsigned(op2_fract)) then
+                    op1_smaller_next <= '0';
+                    mfract_1_sel <= '1'; --pusti frakciju iz op2 u shift registar
+                    mfract_2_sel <= '0'; --pusti frakciju iz op1 u BIG_ALU
+                    res_sign_next <= op1_sign; --dodeli rezultatu znak veceg po apsolutnoj vrednosti
+                  elsif(unsigned(op1_fract) < unsigned(op2_fract)) then
+                    op1_smaller_next <= '1';
+                    mfract_1_sel <= '0'; --pusti frakciju iz op1 u shift registar
+                    mfract_2_sel <= '1'; --pusti frakciju iz op2 u BIG_ALU
+                    res_sign_next <= op2_sign; --dodeli rezultatu znak veceg po apsolutnoj vrednosti
+                  else
+                    --EXP1 = EXP2 and FRACT1 = FRACT2
+                    --za slucaj da su i frakcije i eksponenti jednaki
+                    op1_smaller_next <= '1';
+                    mfract_1_sel <= '0'; --pusti frakciju iz op1 u shift registar
+                    mfract_2_sel <= '1'; --pusti frakciju iz op2 u BIG_ALU
                 
-                count_s_next <= unsigned(ed_val(7 downto 0)); --sacuva se kao broj ciklusa koje ce biti pomerana vrednost u registru
-                
-                count_temp <= unsigned(ed_val(7 downto 0));
-                --count_temp <= count_s; --da li je ovo neophodno??
-                --dodela je konkurentna on ce uzeti vrednost count_s = (others=>'0')
-                
-                if(input_comb_s="10" or input_comb_s="01") then --"10" for inf "01" for NaN
-                  mux_exp_sel_top <= '0'; --op2 has ZERO EXP and pass EXP of op1 into incr/decr circuit
+                    if(op1_sign = op2_sign) then
+                      res_sign_next <= op2_sign; --uvek prosledjujem znak operanda koji ide u BIG_ALU
+                    else
+                      res_sign_next <= '0'; --if op1=op2 and op1_sign!=op2_sign result is zero, and res_sign is 0 for positive zero
+                      --potrebno je setovati i eksponent na nulu jer je zapis nule u IEEE754  0  00000000  000 0000 0000 0000 0000 0000
+                    end if;
+                  end if;
+              
+                  shift_r_ctrl <= "11"; --ucita vrednost u shift registar
+              
+                  mux_exp_sel_top <= '0'; --selektuje eksponent op1 (moze i '1' za op2 svejedno je jer su jednaki)
+                  mux_exp_sel_bot <= '0'; --selektuje eksponent iz ulaznog broja (sa '1' bi selektovao eksponent iz round bloka)
+                  inc_dec_ctrl <= "11"; --ucita vrednost selektovanog eksponenta
+              
+              
+                  shift_flag_next <= '0';
+                  state_next <= FRACTION_ADD;
                 else
-                  mux_exp_sel_top <= '1'; --pass the exp of op2 for increment/decrement
-                end if;
-                mux_exp_sel_bot <= '0';
-                inc_dec_ctrl <= "11";
+            
+                  --exponent difference not zero
+                  shift_flag_next <= '1';
+                  shift_r_ctrl <= "11"; --"11" load value into shift reg
+            
+                  if(ed_val(8)='0') then --exponent difference value is positive 
+                    -- op1 bigger than op2
+                    op1_smaller_next <= '0';
+                    mfract_1_sel <= '1'; --pusti frakciju iz op2 u shift_right registar jer je exp2 manji
+                    mfract_2_sel <= '0'; --pusti frakciju iz op1 u BIG_ALU
+                    res_sign_next <= op1_sign; --rezultat dobija znak veceg operanda
+                
+                    count_s_next <= unsigned(ed_val(7 downto 0)); --sacuva se kao broj ciklusa koje ce biti pomerana vrednost u registru
+                
+                    count_temp <= unsigned(ed_val(7 downto 0));
+                    --count_temp <= count_s; --da li je ovo neophodno??
+                    --dodela je konkurentna on ce uzeti vrednost count_s = (others=>'0')
+                
+                    if(input_comb_s="10" or input_comb_s="01") then --"10" for inf "01" for NaN
+                      mux_exp_sel_top <= '0'; --op2 has ZERO EXP and pass EXP of op1 into incr/decr circuit
+                    else
+                      mux_exp_sel_top <= '1'; --pass the exp of op2 for increment/decrement
+                    end if;
+                    mux_exp_sel_bot <= '0';
+                    inc_dec_ctrl <= "11";
                                 
-                state_next <= SHIFT_SMALLER;
-              else
-                -- op2 bigger than op1
-                op1_smaller_next <= '1';
-                mfract_1_sel <= '0'; --pusti frakciju iz op1 u shift_right registar jer je exp1 manji
-                mfract_2_sel <= '1'; --pusti frakciju iz op2 u BIG ALU
-                res_sign_next <= op2_sign; --rezultat dobija znak veceg operanda
+                    state_next <= SHIFT_SMALLER;
+                  else
+                    -- op2 bigger than op1
+                    op1_smaller_next <= '1';
+                    mfract_1_sel <= '0'; --pusti frakciju iz op1 u shift_right registar jer je exp1 manji
+                    mfract_2_sel <= '1'; --pusti frakciju iz op2 u BIG ALU
+                    res_sign_next <= op2_sign; --rezultat dobija znak veceg operanda
                 
-                if(input_comb_s = "10" or input_comb_s="01") then
-                  mux_exp_sel_top <= '1'; --op1 has ZERO EXP and pass EXP of op2 into incr/decr circuit
-                else
-                  mux_exp_sel_top <= '0'; --pass the exp of op1 for increment/decrement
+                    if(input_comb_s = "10" or input_comb_s="01") then
+                      mux_exp_sel_top <= '1'; --op1 has ZERO EXP and pass EXP of op2 into incr/decr circuit
+                    else
+                      mux_exp_sel_top <= '0'; --pass the exp of op1 for increment/decrement
+                    end if;
+                
+                    mux_exp_sel_bot <= '0'; --pass exp from top
+                    inc_dec_ctrl <= "11"; --load value into inc_dec module
+                
+                    count_v := (not(unsigned(ed_val)))+1; --da negativnu vrednost prevede iz komplementa dvoje, DOBIJE APSOLUTNU VREDNOST RAZLIKE
+                    count_s_next <= count_v(7 downto 0); --dodeli 8 bita odnosno apsolutnu vrednost razlike bez bita znaka
+                
+                    count_temp <= count_v(7 downto 0); --DA LI JE OVO NEOPHODNO ?
+                
+                    state_next <= SHIFT_SMALLER;
+                  end if;
                 end if;
+              end case;
                 
-                mux_exp_sel_bot <= '0'; --pass exp from top
-                inc_dec_ctrl <= "11"; --load value into inc_dec module
-                
-                count_v := (not(unsigned(ed_val)))+1; --da negativnu vrednost prevede iz komplementa dvoje, DOBIJE APSOLUTNU VREDNOST RAZLIKE
-                count_s_next <= count_v(7 downto 0); --dodeli 8 bita odnosno apsolutnu vrednost razlike bez bita znaka
-                
-                count_temp <= count_v(7 downto 0); --DA LI JE OVO NEOPHODNO ?
-                
-                state_next <= SHIFT_SMALLER;
-              end if;
-            end if;
-            
           when SHIFT_SMALLER =>
             --u ovom stanju treba da se vrti i da dekrementira brojac count_s do nule svaki takt da pomeri jednom frakciju i da dekrementira brojac
             
