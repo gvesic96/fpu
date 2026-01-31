@@ -93,7 +93,7 @@ entity control_path_add is
 end control_path_add;
 
 architecture Behavioral of control_path_add is
-    type add_state_type is (IDLE, LOAD_BUFF, INPUT_CHECK, EXP_COMPARE, SHIFT_SMALLER, FRACTION_ADD, NORM, NORM_BUFF, RESULT_OVERFLOW, ROUND, FINAL_CHECK, RESULT_ZERO, READY_STATE);
+    type add_state_type is (IDLE, LOAD_BUFF, INPUT_CHECK, EXP_COMPARE, SHIFT_SMALLER, FRACTION_ADD, NORM, NORM_BUFF, RESULT_OVERFLOW, ROUND, RESULT_ZERO, READY_STATE);
     signal state_next, state_reg : add_state_type;
     
 	--constant IDLE          : add_state_type := IDLE;
@@ -156,7 +156,7 @@ begin
         end if;
     end process state_proc;
 
-    control_proc: process(state_reg, start, big_alu_carry, count_s, n_count_s) is --za milijev automat treba dodati signale u sensitivity listu? DA
+    control_proc: process(state_reg, start, big_alu_carry, count_s, n_count_s, round_rdy, round_carry) is --za milijev automat treba dodati signale u sensitivity listu? DA
       variable count_v : unsigned (8 downto 0) := (others=>'0');
     begin
         rdy <= '0'; --podrazumevana vrednost
@@ -200,6 +200,7 @@ begin
             end if;
           
           when LOAD_BUFF =>
+            ed_reg_en <= '1';
             state_next <= INPUT_CHECK;
           
           when INPUT_CHECK =>
@@ -212,34 +213,33 @@ begin
             end if;
             
             if((unsigned(op1_exp)=255 and unsigned(op1_fract)>0) or (unsigned(op1_exp)=255 and unsigned(op1_fract)>0)) then
-              input_comb_next <= "01";
-            else
-            --dodato za rad sa nulom
-            if(unsigned(op1_exp)=0 or unsigned(op2_exp)=0) then
-              if(unsigned(op1_exp)=0 and unsigned(op2_exp)=0) then
-                input_comb_next <= "00";
+                input_comb_next <= "01";
               else
-                input_comb_next <= "10";
-              end if;
-            else
-              --ovde da dodam kada je jedan operand +-inf a drugi realan broj
-              if(unsigned(op1_exp)=255 xor unsigned(op2_exp)=255) then
-                input_comb_next <= "10";
-              else
-                if(unsigned(op1_exp)=255 and unsigned(op2_exp)=255) then
-                  if(op1_sign = op2_sign) then
-                    input_comb_next <= "10"; --situacija u kojoj su brojevi na ulazu (+inf +inf) ili (-inf -inf)
-                  else
-                    input_comb_next <= "01"; --situacija u kojoj su oba broja na ulazu inf, op1=-inf op2=+inf   -> REZULTAT CE BITI NaN
-                  end if;
+              --dodato za rad sa nulom
+              if(unsigned(op1_exp)=0 or unsigned(op2_exp)=0) then
+                if(unsigned(op1_exp)=0 and unsigned(op2_exp)=0) then
+                  input_comb_next <= "00";
                 else
-                  input_comb_next <= "11"; --situacija kad nijedan broj na ulazu nije +-inf a nije ni nula
+                  input_comb_next <= "10";
+                end if;
+              else
+                --ovde da dodam kada je jedan operand +-inf a drugi realan broj
+                if(unsigned(op1_exp)=255 xor unsigned(op2_exp)=255) then
+                  input_comb_next <= "10";
+                else
+                  if(unsigned(op1_exp)=255 and unsigned(op2_exp)=255) then
+                    if(op1_sign = op2_sign) then
+                      input_comb_next <= "10"; --situacija u kojoj su brojevi na ulazu (+inf +inf) ili (-inf -inf)
+                    else
+                      input_comb_next <= "01"; --situacija u kojoj su oba broja na ulazu inf, op1=-inf op2=+inf   -> REZULTAT CE BITI NaN
+                    end if;
+                  else
+                    input_comb_next <= "11"; --situacija kad nijedan broj na ulazu nije +-inf a nije ni nula
+                  end if;
                 end if;
               end if;
-              --input_comb_next <= "11";
-            end if;
             
-            end if;-- OVO JE OD PRVOG TESTA ZA NaN
+            end if; --closing first if statement that test input for NaN
             state_next <= EXP_COMPARE;          
           
           when EXP_COMPARE =>
@@ -247,8 +247,8 @@ begin
               when "00" =>
                 res_sign_next <= '0'; --set sign for output here to zero because skipping sign determination
                 state_next <= RESULT_ZERO;
+              
               when others =>
-            
                 if(unsigned(ed_val)=0) then
                   --EXP_1 = EXP_2
                   --pusti manju frakciju uvek u shift registar
@@ -273,7 +273,7 @@ begin
                       res_sign_next <= op2_sign; --uvek prosledjujem znak operanda koji ide u BIG_ALU
                     else
                       res_sign_next <= '0'; --if op1=op2 and op1_sign!=op2_sign result is zero, and res_sign is 0 for positive zero
-                      --potrebno je setovati i eksponent na nulu jer je zapis nule u IEEE754  0  00000000  000 0000 0000 0000 0000 0000
+                      --potrebno je postaviti i eksponent na nulu jer je zapis nule u IEEE754  0  00000000  000 0000 0000 0000 0000 0000
                     end if;
                   end if;
               
@@ -289,7 +289,7 @@ begin
                 else
             
                   --exponent difference not zero
-                  shift_flag_next <= '1';
+                  shift_flag_next <= '1'; --there will be shifting of operand
                   shift_r_ctrl <= "11"; --"11" load value into shift reg
             
                   if(ed_val(8)='0') then --exponent difference value is positive 
@@ -342,13 +342,10 @@ begin
                 
           when SHIFT_SMALLER =>
             --u ovom stanju treba da se vrti i da dekrementira brojac count_s do nule svaki takt da pomeri jednom frakciju i da dekrementira brojac
-            
             --shift_r_ctrl <= "10"; --shift right
-            --if(input_comb_s =)
-            
             
             if(input_comb_s = "10" or input_comb_s="01") then
-              inc_dec_ctrl <= "00"; --if smaller operand is zero exponent then do not increment exponent because larger operand is filled in
+              inc_dec_ctrl <= "00"; --if smaller operand is zero exponent then do not increment exponent because larger operand exp is filled in
               shift_r_ctrl <= "00"; --no need to shift smaller operand if smaller operand is zero
             else  
               inc_dec_ctrl <= "01"; ----------- EXPONENT INCREMENT for shifting fraction right
@@ -380,8 +377,9 @@ begin
               inc_dec_ctrl <= "00";
               state_next <= FRACTION_ADD;
             else
-              if(input_comb_s = "10" or input_comb_s="01") then
+              if(input_comb_s="10" or input_comb_s="01") then
                 count_s_next <= b"00000000";
+                --trebalo bi da ovde moze direktno da predje u FACTION_ADD za input comb 01
               else
                 count_s_next <= count_s - 1;
               end if;
@@ -391,7 +389,7 @@ begin
           when FRACTION_ADD =>
             --u sabiranju treba ucitati vrednosti u big alu i dodati jos 2 bita da bi bilo moguce zaokruzivanje GUARD i ROUND bit
             if((input_comb_s = "10" and exp255_flag_s='1') or input_comb_s="01") then
-              big_alu_en <= '0';
+              big_alu_en <= '0'; --izlaz BIG_ALU je na nuli
             else
               big_alu_en <= '1';
             end if;
@@ -528,12 +526,11 @@ begin
             norm_reg_ctrl <= "11";
             state_next <= NORM;
             
-          when ROUND =>
-            round_en <= '1';
-            state_next <= FINAL_CHECK;
+          --when ROUND =>
+          --  round_en <= '1';
+          --  state_next <= FINAL_CHECK;
             
-          when FINAL_CHECK =>
-          --ROUND_RDY SIGNAL JE VEROVATNO NEPOTREBAN !!!! OBRATI PAZNJU
+          when ROUND =>
             round_en <= '1';
             if(round_rdy = '1') then
               if(round_carry='1') then
@@ -546,7 +543,9 @@ begin
                 state_next <= READY_STATE;
               end if;
             else
-               state_next <= FINAL_CHECK;
+               state_next <= ROUND;
+               --bolje bi bilo da rezultat bude qNaN odnosno da se postavi input_comb_s="01" i da se vrati u stanje NORM
+               --potrebno je izmeniti i inc_dec blok uvodjenjem en signala da se za slucaj en=0 postavi izlaz na 1111 1111
             end if;
           
           when RESULT_ZERO =>
