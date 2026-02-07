@@ -59,6 +59,8 @@ entity data_path_add is
         mres_sel : in STD_LOGIC;
         inc_dec_ctrl : in STD_LOGIC_VECTOR(1 downto 0);
         --round_ctrl : in STD_LOGIC_VECTOR(1 downto 0);
+        
+        shift_r_en : in STD_LOGIC;
         shift_r_ctrl : in STD_LOGIC_VECTOR(1 downto 0);
         shift_r_d0 : in STD_LOGIC;
         shift_flag : in STD_LOGIC;
@@ -71,7 +73,7 @@ entity data_path_add is
         norm_reg_ctrl : in STD_LOGIC_VECTOR(1 downto 0);
         norm_reg_d0 : in STD_LOGIC;
         norm_reg_msb : out STD_LOGIC;
-        --norm_reg_en : in STD_LOGIC; --SUVISAN SIGNAL? TREBA GA UKLONITI IZ Control_Patha ?
+        norm_reg_en : in STD_LOGIC;
         norm_exp : out STD_LOGIC_VECTOR(WIDTH_EXP-1 downto 0);
         
         round_en : in STD_LOGIC;
@@ -200,6 +202,7 @@ begin
         generic map(WIDTH => EXT_WIDTH_FRACT)
         port map(clk => clk,
                  rst => rst,
+                 en => shift_r_en,
                  ctrl => shift_r_ctrl,
                  d => fract_1_s,
                  d0_fsm => shift_r_d0,
@@ -231,6 +234,7 @@ begin
         generic map(WIDTH => EXT_WIDTH_FRACT)
         port map(clk => clk,
                  rst => rst,
+                 en => norm_reg_en,
                  ctrl => norm_reg_ctrl,
                  d0_fsm => norm_reg_d0,
                  d => norm_reg_in_s,

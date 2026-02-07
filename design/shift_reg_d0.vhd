@@ -35,6 +35,7 @@ entity shift_reg_d0 is
     Generic(WIDTH : positive := 32);
     Port ( clk : in std_logic;
            rst : in std_logic;
+           en : in std_logic;
            ctrl : in std_logic_vector (1 downto 0);
            d : in std_logic_vector(WIDTH-1 downto 0);
            d0_fsm : in std_logic;
@@ -53,20 +54,24 @@ begin
       if(rst='1') then
         q_s <= (others => '0');
       elsif(clk'event and clk='1') then
-        case ctrl is
-          when "00" =>
-            --hold
-            q_s <= q_s;
-          when "01" =>
-            --shift left
-            q_s <= q_s(WIDTH-2 downto 0) & d0_fsm;
-          when "10" =>
-            --shift right
-            q_s <= d0_fsm & q_s(WIDTH-1 downto 1);
-          when others =>
-            --load for value "11"
-            q_s <= d;
-        end case;
+        if(en='1') then
+          case ctrl is
+            when "00" =>
+              --hold
+              q_s <= q_s;
+            when "01" =>
+              --shift left
+              q_s <= q_s(WIDTH-2 downto 0) & d0_fsm;
+            when "10" =>
+              --shift right
+              q_s <= d0_fsm & q_s(WIDTH-1 downto 1);
+            when others =>
+              --load for value "11"
+              q_s <= d;
+          end case;
+        else
+          q_s <= (others=>'0');
+        end if;
       end if;
     end process shift_reg;
     

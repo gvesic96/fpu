@@ -61,7 +61,7 @@ architecture Behavioral of add_module is
     signal norm_exp_s : STD_LOGIC_VECTOR(WIDTH_EXP-1 downto 0);
 
     --signals from control_path to data_path
-    signal op_en_s, ed_reg_en_s, shift_r_d0_s : STD_LOGIC;
+    signal op_en_s, ed_reg_en_s, shift_r_d0_s, shift_r_en_s, norm_reg_en_s : STD_LOGIC;
     signal shift_r_ctrl_s, inc_dec_ctrl_s, nreg_ctrl_s : STD_LOGIC_VECTOR(1 downto 0);
     signal mfract_1_sel_s, mfract_2_sel_s, mexp_sel_top_s, mexp_sel_bot_s, mres_sel_s : STD_LOGIC;
     signal ba_en_s, ba_sel_s : STD_LOGIC;
@@ -93,6 +93,8 @@ begin
                  --shift_r_en => shift_r_en_s,
                  shift_r_d0 => shift_r_d0_s,
                  shift_r_ctrl => shift_r_ctrl_s,
+                 shift_r_en => shift_r_en_s,
+                 
                  shift_flag => shift_flag_s,
                  mfract_1_sel => mfract_1_sel_s,
                  mfract_2_sel => mfract_2_sel_s,
@@ -102,10 +104,13 @@ begin
                  big_alu_en => ba_en_s,
                  big_alu_sel => ba_sel_s,
                  mres_sel => mres_sel_s,
+                 
+                 norm_reg_en => norm_reg_en_s,
                  norm_reg_ctrl => nreg_ctrl_s,
                  norm_reg_d0 => nreg_d0_s,
                  norm_msb => nreg_msb_s,
                  norm_exp => norm_exp_s,
+                 
                  round_en => round_en_s,
                  round_rdy => round_rdy_s,
                  round_carry => round_carry_s,--iz data_patha u control_path
@@ -142,6 +147,7 @@ begin
                  
                  inc_dec_ctrl => inc_dec_ctrl_s,
                  
+                 shift_r_en => shift_r_en_s,
                  shift_r_ctrl => shift_r_ctrl_s,
                  shift_r_d0 => shift_r_d0_s,
                  shift_flag => shift_flag_s,
@@ -150,6 +156,8 @@ begin
                  ba_sel => ba_sel_s,
                  --ba_result => ba_result_s, --ba_result je verovatno suvisan signal
                  ba_carry => ba_carry_s,
+                 
+                 norm_reg_en => norm_reg_en_s,
                  norm_reg_ctrl => nreg_ctrl_s,
                  norm_reg_d0 => nreg_d0_s,
                  norm_reg_msb => nreg_msb_s,

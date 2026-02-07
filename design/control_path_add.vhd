@@ -56,6 +56,7 @@ entity control_path_add is
         
         
         shift_r_ctrl : out STD_LOGIC_VECTOR(1 downto 0);
+        shift_r_en : out STD_LOGIC;
         shift_r_d0 : out STD_LOGIC; --izlaz koji se povezuje na d0_fsm u shift registru
         
         
@@ -74,8 +75,8 @@ entity control_path_add is
         big_alu_sel : out STD_LOGIC;
         mres_sel : out STD_LOGIC;
         
-        --norm_reg_en : out STD_LOGIC;
         norm_reg_ctrl : out STD_LOGIC_VECTOR(1 downto 0);
+        norm_reg_en : out STD_LOGIC;
         norm_reg_d0 : out STD_LOGIC;
         norm_msb : in STD_LOGIC;
         
@@ -162,6 +163,8 @@ begin
         round_en <= '0';
         shift_r_ctrl <= "00";
         shift_r_d0 <= '0';
+        shift_r_en <= '1';
+        norm_reg_en <= '1';
         
         count_s_next <= count_s;
         n_count_s_next <= n_count_s; --ovaj signal je uklonjen zbog pravljenja petlje sto je detektovao jasperGold
@@ -273,7 +276,12 @@ begin
                   shift_flag_next <= '0';
                   state_next <= FRACTION_ADD;
                 else
-            
+                  
+                  --in case of one subnormal input shift_r_en signal will prevent subnormal fraction from propagating
+                  if(input_comb_s="10") then
+                    shift_r_en <= '0';
+                  end if;
+                  
                   --exponent difference not zero
                   shift_flag_next <= '1'; --there will be shifting of operand
                   shift_r_ctrl <= "11"; --"11" load value into shift reg
@@ -527,18 +535,15 @@ begin
                 state_next <= READY_STATE;
               end if;
             else
-               state_next <= ROUND;
+               state_next <= IDLE;
                --bolje bi bilo da rezultat bude qNaN odnosno da se postavi input_comb_s="01" i da se vrati u stanje NORM
                --potrebno je izmeniti i inc_dec blok uvodjenjem en signala da se za slucaj en=0 postavi izlaz na 1111 1111?
             end if;
           
           when RESULT_ZERO =>
             --round block is disabled by default value of round_en signal, so its output is all zeros
-            --round_en <= '0';
-            --output_reg_en <= '1';
-            --res_sign_next <= '0';
             output_reg_en <= '1';
-            state_next <= READY_STATE;  
+            state_next <= READY_STATE;
           
           when READY_STATE =>
             rdy <= '1';
