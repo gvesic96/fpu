@@ -96,20 +96,6 @@ architecture Behavioral of control_path_add is
     type add_state_type is (IDLE, LOAD_BUFF, INPUT_CHECK, EXP_COMPARE, SHIFT_SMALLER, FRACTION_ADD, NORM, NORM_BUFF, RESULT_OVERFLOW, ROUND, RESULT_ZERO, READY_STATE);
     signal state_next, state_reg : add_state_type;
     
-	--constant IDLE          : add_state_type := IDLE;
-	--constant LOAD_BUFF     : add_state_type := LOAD_BUFF;
-	--constant INPUT_CHECK   : add_state_type := INPUT_CHECK;
-	--constant EXP_COMPARE_1 : add_state_type := EXP_COMPARE_1;
-	--constant EXP_COMPARE_2 : add_state_type := EXP_COMPARE_2;
-	--constant SHIFT_SMALLER : add_state_type := SHIFT_SMALLER;
-	--constant FRACTION_ADD  : add_state_type := FRACTION_ADD;
-	--constant NORM          : add_state_type := NORM;
-	--constant NORM_BUFF     : add_state_type := NORM_BUFF;
-	--constant RESULT_OVERFLOW : add_state_type := RESULT_OVERFLOW;
-	--constant ROUND         : add_state_type := ROUND;
-	--constant FINAL_CHECK   : add_state_type := FINAL_CHECK;
-	--constant RESULT_ZERO   : add_state_type := RESULT_ZERO;
-	--constant READY_STATE   : add_state_type := READY_STATE;
 
     signal count_s, count_s_next : unsigned (7 downto 0) := (others=>'0');
     signal n_count_s, n_count_s_next : unsigned (4 downto 0) := (others =>'0');
@@ -441,6 +427,7 @@ begin
               
               when "00000000" =>
                 --inc_dec_ctrl <= "00"; --nebitno
+                res_sign_next <= '0';
                 state_next <= RESULT_ZERO;
               
               when others =>
@@ -514,6 +501,7 @@ begin
             if(n_count_s = 25) then
               --round_en <= '0';
               --res_sign_next <= '0'; not needed already set before
+              res_sign_next <= '0';
               state_next <= RESULT_ZERO;
             else
               state_next <= ROUND;
@@ -525,17 +513,13 @@ begin
             inc_dec_ctrl <= "00";
             norm_reg_ctrl <= "11";
             state_next <= NORM;
-            
-          --when ROUND =>
-          --  round_en <= '1';
-          --  state_next <= FINAL_CHECK;
-            
+              
           when ROUND =>
             round_en <= '1';
             if(round_rdy = '1') then
               if(round_carry='1') then
                 hidden_value_next <= hidden_value + 1;
-                norm_reg_ctrl <= "11"; --bilo je 00
+                norm_reg_ctrl <= "11"; --bilo je 00 sto je dovodilo do greske jer se nije ucitavala vrednost
                 mres_sel <= '1';
                 state_next <= NORM;
               else
@@ -545,14 +529,15 @@ begin
             else
                state_next <= ROUND;
                --bolje bi bilo da rezultat bude qNaN odnosno da se postavi input_comb_s="01" i da se vrati u stanje NORM
-               --potrebno je izmeniti i inc_dec blok uvodjenjem en signala da se za slucaj en=0 postavi izlaz na 1111 1111
+               --potrebno je izmeniti i inc_dec blok uvodjenjem en signala da se za slucaj en=0 postavi izlaz na 1111 1111?
             end if;
           
           when RESULT_ZERO =>
-            --round block is disabled so its output is all zeros
+            --round block is disabled by default value of round_en signal, so its output is all zeros
             --round_en <= '0';
             --output_reg_en <= '1';
             --res_sign_next <= '0';
+            output_reg_en <= '1';
             state_next <= READY_STATE;  
           
           when READY_STATE =>
