@@ -332,6 +332,10 @@ begin
                     state_next <= SHIFT_SMALLER;
                   end if;
                 end if;
+                --this line prevents generating negative qNaN, so qNaN value is always 7FC0 0000
+                if(input_comb_s="01") then
+                  res_sign_next <= '0';
+                end if;
               end case;
                 
           when SHIFT_SMALLER =>
