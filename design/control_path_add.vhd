@@ -100,7 +100,7 @@ architecture Behavioral of control_path_add is
 
     signal count_s, count_s_next : unsigned (7 downto 0) := (others=>'0');
     signal n_count_s, n_count_s_next : unsigned (4 downto 0) := (others =>'0');
-    signal count_temp : unsigned (7 downto 0) := (others=>'0');
+    signal count_temp_s, count_temp_next : unsigned (7 downto 0) := (others=>'0');
     signal hidden_value, hidden_value_next : unsigned(1 downto 0) := (others=>'0');
     signal shift_flag_next, shift_flag_s : std_logic := '0';
     signal op1_smaller_s, op1_smaller_next : std_logic := '1'; --signal that memorize which operand goes into SHIFT_R/BIG_ALU
@@ -127,7 +127,8 @@ begin
           res_sign_s <= '0';
           input_comb_s <= (others=>'0');
           exp255_flag_s <= '0';
-	  hidden_value <= (others => '0');
+          count_temp_s <= (others =>'0');
+	      hidden_value <= (others => '0');
         else
           if(clk'event and clk='1') then
             count_s <= count_s_next;
@@ -138,7 +139,8 @@ begin
             input_comb_s <= input_comb_next;
             exp255_flag_s <= exp255_flag_next;
             state_reg <= state_next;
-	    hidden_value <= hidden_value_next;
+            count_temp_s <= count_temp_next;
+	        hidden_value <= hidden_value_next;
           end if;
         end if;
     end process state_proc;
@@ -151,8 +153,12 @@ begin
         big_alu_sel <= '0';
         ed_reg_en <= '0';
         inc_dec_ctrl <= "00";
-        mfract_1_sel <= '0';
-        mfract_2_sel <= '1';
+        
+        --Passing value to selection inputs of mux based on op1_smaller_s
+        --op1_smaller_s prevents changing mfract_selection values
+        mfract_1_sel <= not op1_smaller_next;
+        mfract_2_sel <= op1_smaller_next;
+        
         mres_sel <= '0';
         mux_exp_sel_bot <= '0';
         mux_exp_sel_top <= '0';
@@ -173,25 +179,28 @@ begin
         res_sign_next <= res_sign_s;
         input_comb_next <= input_comb_s;
         exp255_flag_next <= exp255_flag_s;
-	hidden_value_next <= hidden_value;        
+	    hidden_value_next <= hidden_value;        
+        count_temp_next <= count_temp_s;
 
         case state_reg is
           
+          --************************************** IDLE **********************************************
           when IDLE =>
             shift_flag_next <= '0';
             exp255_flag_next <= '0';
             if(start='1') then
-              --small_alu_en <= '1'; --ovaj signal je suvisan
               operands_en <= '1';
               state_next <= LOAD_BUFF;
             else
               state_next <= IDLE;
             end if;
           
+          --************************************** LOAD_BUFF *****************************************
           when LOAD_BUFF =>
             ed_reg_en <= '1';
             state_next <= INPUT_CHECK;
           
+          --************************************** INPUT_CHECK ***************************************
           when INPUT_CHECK =>
             ed_reg_en <= '1';
             --detection of inf on input
@@ -231,10 +240,16 @@ begin
             end if; --closing first if statement that test input for NaN
             state_next <= EXP_COMPARE;          
           
+          --************************************** EXP_COMPARE *****************************************
           when EXP_COMPARE =>
             case input_comb_s is
+              
               when "00" =>
-                res_sign_next <= '0'; --set sign for output here to zero because skipping sign determination
+                if(op1_sign = op2_sign) then
+                  res_sign_next <= op1_sign; --same signed zeros produce same signed zero (-0 + -0 = -0)
+                else
+                  res_sign_next <= '0'; --different signed zeros produce positive zero
+                end if;
                 state_next <= RESULT_ZERO;
               
               when others =>
@@ -242,21 +257,14 @@ begin
                   --EXP_1 = EXP_2
                   --pusti manju frakciju uvek u shift registar
                   if(unsigned(op1_fract) > unsigned(op2_fract)) then
-                    op1_smaller_next <= '0';
-                    mfract_1_sel <= '1'; --pusti frakciju iz op2 u shift registar
-                    mfract_2_sel <= '0'; --pusti frakciju iz op1 u BIG_ALU
-                    res_sign_next <= op1_sign; --dodeli rezultatu znak veceg po apsolutnoj vrednosti
+                    op1_smaller_next <= '0';                            --pusti frakciju iz op2 u shift registar --pusti frakciju iz op1 u BIG_ALU
+                    res_sign_next <= op1_sign;                          --dodeli rezultatu znak veceg po apsolutnoj vrednosti
                   elsif(unsigned(op1_fract) < unsigned(op2_fract)) then
-                    op1_smaller_next <= '1';
-                    mfract_1_sel <= '0'; --pusti frakciju iz op1 u shift registar
-                    mfract_2_sel <= '1'; --pusti frakciju iz op2 u BIG_ALU
-                    res_sign_next <= op2_sign; --dodeli rezultatu znak veceg po apsolutnoj vrednosti
+                    op1_smaller_next <= '1';                            --pusti frakciju iz op1 u shift registar --pusti frakciju iz op2 u BIG_ALU
+                    res_sign_next <= op2_sign;                          --dodeli rezultatu znak veceg po apsolutnoj vrednosti
                   else
                     --EXP1 = EXP2 and FRACT1 = FRACT2
-                    --za slucaj da su i frakcije i eksponenti jednaki
-                    op1_smaller_next <= '1';
-                    mfract_1_sel <= '0'; --pusti frakciju iz op1 u shift registar
-                    mfract_2_sel <= '1'; --pusti frakciju iz op2 u BIG_ALU
+                    op1_smaller_next <= '1'; --pusti frakciju iz op1 u shift registar --pusti frakciju iz op2 u BIG_ALU
                 
                     if(op1_sign = op2_sign) then
                       res_sign_next <= op2_sign; --uvek prosledjujem znak operanda koji ide u BIG_ALU
@@ -288,14 +296,12 @@ begin
             
                   if(ed_val(8)='0') then --exponent difference value is positive 
                     -- op1 bigger than op2
-                    op1_smaller_next <= '0';
-                    mfract_1_sel <= '1'; --pusti frakciju iz op2 u shift_right registar jer je exp2 manji
-                    mfract_2_sel <= '0'; --pusti frakciju iz op1 u BIG_ALU
+                    op1_smaller_next <= '0';                --pusti frakciju iz op2 u shift_right registar jer je exp2 manji --pusti frakciju iz op1 u BIG_ALU
                     res_sign_next <= op1_sign; --rezultat dobija znak veceg operanda
                 
                     count_s_next <= unsigned(ed_val(7 downto 0)); --sacuva se kao broj ciklusa koje ce biti pomerana vrednost u registru
                 
-                    count_temp <= unsigned(ed_val(7 downto 0));
+                    count_temp_next <= unsigned(ed_val(7 downto 0));
                     --count_temp <= count_s; --da li je ovo neophodno??
                     --dodela je konkurentna on ce uzeti vrednost count_s = (others=>'0')
                 
@@ -310,9 +316,7 @@ begin
                     state_next <= SHIFT_SMALLER;
                   else
                     -- op2 bigger than op1
-                    op1_smaller_next <= '1';
-                    mfract_1_sel <= '0'; --pusti frakciju iz op1 u shift_right registar jer je exp1 manji
-                    mfract_2_sel <= '1'; --pusti frakciju iz op2 u BIG ALU
+                    op1_smaller_next <= '1';  --pusti frakciju iz op1 u shift_right registar jer je exp1 manji  --pusti frakciju iz op2 u BIG ALU
                     res_sign_next <= op2_sign; --rezultat dobija znak veceg operanda
                 
                     if(input_comb_s = "10" or input_comb_s="01") then
@@ -326,8 +330,7 @@ begin
                 
                     count_v := (not(unsigned(ed_val)))+1; --da negativnu vrednost prevede iz komplementa dvoje, DOBIJE APSOLUTNU VREDNOST RAZLIKE
                     count_s_next <= count_v(7 downto 0); --dodeli 8 bita odnosno apsolutnu vrednost razlike bez bita znaka
-                
-                    count_temp <= count_v(7 downto 0); --DA LI JE OVO NEOPHODNO ?
+                    count_temp_next <= count_v(7 downto 0);
                 
                     state_next <= SHIFT_SMALLER;
                   end if;
@@ -338,10 +341,9 @@ begin
                 end if;
               end case;
                 
+          --************************************** SHIFT_SMALLER *****************************************      
           when SHIFT_SMALLER =>
-            --u ovom stanju treba da se vrti i da dekrementira brojac count_s do nule svaki takt da pomeri jednom frakciju i da dekrementira brojac
-            --shift_r_ctrl <= "10"; --shift right
-            
+            --u ovom stanju treba da se vrti i da dekrementira brojac count_s do nule svaki takt da pomeri jednom frakciju i da dekrementira brojac  
             if(input_comb_s = "10" or input_comb_s="01") then
               inc_dec_ctrl <= "00"; --if smaller operand is zero exponent then do not increment exponent because larger operand exp is filled in
               shift_r_ctrl <= "00"; --no need to shift smaller operand if smaller operand is zero
@@ -349,18 +351,9 @@ begin
               inc_dec_ctrl <= "01"; ----------- EXPONENT INCREMENT for shifting fraction right
               shift_r_ctrl <= "10"; --if smaller operand is not zero input 01 11 00 shift smaller operand right
             end if;
-            
-            --op1_smaller_s prevents returning mfract_selection values to default
-            if(op1_smaller_s = '1') then
-              mfract_1_sel <= '0';
-              mfract_2_sel <= '1';
-            else
-              mfract_1_sel <= '1';
-              mfract_2_sel <= '0';
-            end if;
-            
+          
             --prvi shift unosi skrivenu jedinicu / nulu ako je jedan operand nula
-            if(count_s = count_temp) then
+            if(count_s = count_temp_s) then
               if(input_comb_s = "11") then
                 shift_r_d0 <= '1'; --if one operand (smaller operand) is zero then shift 0 into the number
               else
@@ -377,13 +370,19 @@ begin
             else
               if(input_comb_s="10" or input_comb_s="01") then
                 count_s_next <= b"00000000";
-                --trebalo bi da ovde moze direktno da predje u FACTION_ADD za input comb 01
               else
                 count_s_next <= count_s - 1;
               end if;
-              state_next <= SHIFT_SMALLER;
+              if(input_comb_s="11" and count_s>26) then
+                --optimization for case when smaller operand does not effect the result (exp difference bigger or equal 27)
+                input_comb_next <= "10";
+                state_next <= EXP_COMPARE;
+              else
+                state_next <= SHIFT_SMALLER;
+              end if;
             end if;
-            
+          
+          --************************************** FRACTION_ADD *****************************************  
           when FRACTION_ADD =>
             --u sabiranju treba ucitati vrednosti u big alu i dodati jos 2 bita da bi bilo moguce zaokruzivanje GUARD i ROUND bit
             if((input_comb_s = "10" and exp255_flag_s='1') or input_comb_s="01") then
@@ -391,15 +390,7 @@ begin
             else
               big_alu_en <= '1';
             end if;
-            
             --op1_smaller_s prevents returning mfract_selection values to default
-            if(op1_smaller_s = '1') then
-              mfract_1_sel <= '0';
-              mfract_2_sel <= '1';
-            else
-              mfract_1_sel <= '1';
-              mfract_2_sel <= '0';
-            end if;
             
             if(op1_sign = op2_sign) then
               big_alu_sel <= '0';
@@ -413,6 +404,7 @@ begin
             
             state_next <= NORM;
             
+          --************************************** NORM *****************************************
           when NORM =>
             if((input_comb_s = "10" and exp255_flag_s='1') or input_comb_s="01") then
               big_alu_en <= '0';
@@ -420,26 +412,10 @@ begin
               big_alu_en <= '1';--ovo je neophodno jer tek u ovom stanju normalizacioni registar moze ucitati vrednost
             end if;
             
-            --op1_smaller_s prevents returning mfract_selection values to default
-            if(op1_smaller_s = '1') then
-              mfract_1_sel <= '0';
-              mfract_2_sel <= '1';
-            else
-              mfract_1_sel <= '1';
-              mfract_2_sel <= '0';
-            end if;
-            
-            -- 3 cases of normalization register
             case norm_exp is
-              
-              --when "11111111" =>
-              --  inc_dec_ctrl <= "00"; --hold value on 1111 1111
-              --  big_alu_en <= '0';
-              --  state_next <= RESULT_OVERFLOW;
-              
+              -- 2 cases of normalization register
               when "00000000" =>
-                --inc_dec_ctrl <= "00"; --nebitno
-                res_sign_next <= '0';
+                --RESULT UNDERFLOW, SIGN IS KEPT UNCHANGED
                 state_next <= RESULT_ZERO;
               
               when others =>
@@ -508,7 +484,7 @@ begin
             
             end case;
             
-            
+          --************************************** NORM_BUFF *****************************************
           when NORM_BUFF =>
             if(n_count_s = 25) then
               --round_en <= '0';
@@ -520,12 +496,14 @@ begin
               --round_en <= '1';
             end if;
             
+          --************************************** RESULT_OVERFLOW *****************************************
           when RESULT_OVERFLOW =>
             big_alu_en <= '0';  
             inc_dec_ctrl <= "00";
             norm_reg_ctrl <= "11";
             state_next <= NORM;
               
+          --************************************** ROUND *****************************************    
           when ROUND =>
             round_en <= '1';
             if(round_rdy = '1') then
@@ -539,25 +517,27 @@ begin
                 state_next <= READY_STATE;
               end if;
             else
-               state_next <= IDLE;
-               --bolje bi bilo da rezultat bude qNaN odnosno da se postavi input_comb_s="01" i da se vrati u stanje NORM
-               --potrebno je izmeniti i inc_dec blok uvodjenjem en signala da se za slucaj en=0 postavi izlaz na 1111 1111?
+               state_next <= ROUND; --Bolje je da ostane u ovom stanju i da se ne uvodi neka besmislena nova funkcionalnost prelaska u drugo stanje bez arhitekturnog smisla
+               --sNaN ili qNaN su softverski nacini oznacavanja neispravne operacije a ne signaliziranje kvara u digitalnom sistemu
             end if;
           
+          --************************************** RESULT_ZERO *****************************************
           when RESULT_ZERO =>
             --round block is disabled by default value of round_en signal, so its output is all zeros
             output_reg_en <= '1';
             state_next <= READY_STATE;
           
+          --************************************** READY_STATE *****************************************
           when READY_STATE =>
             rdy <= '1';
             state_next <= IDLE;
-            
+          
+          --************************************** when others *****************************************  
           when others =>
             state_next <= IDLE;
+        
         end case;
     
     end process control_proc;
-
 
 end Behavioral;
