@@ -59,6 +59,7 @@ architecture Behavioral of add_module is
     signal op1_fract_s, op2_fract_s : STD_LOGIC_VECTOR(WIDTH_FRACT-1 downto 0);
     signal op1_exp_s, op2_exp_s : STD_LOGIC_VECTOR(WIDTH_EXP-1 downto 0);
     signal norm_exp_s : STD_LOGIC_VECTOR(WIDTH_EXP-1 downto 0);
+    signal sticky_out_dp_s : STD_LOGIC;
 
     --signals from control_path to data_path
     signal op_en_s, ed_reg_en_s, shift_r_d0_s, shift_r_en_s, norm_reg_en_s : STD_LOGIC;
@@ -71,6 +72,7 @@ architecture Behavioral of add_module is
     signal round_en_s : STD_LOGIC;
     signal oreg_en_s : STD_LOGIC;
     signal res_sign_s : STD_LOGIC;
+    signal sticky_out_cp_s : STD_LOGIC;
     
 begin
 
@@ -94,6 +96,9 @@ begin
                  shift_r_d0 => shift_r_d0_s,
                  shift_r_ctrl => shift_r_ctrl_s,
                  shift_r_en => shift_r_en_s,
+                 
+                 sticky_out_cp => sticky_out_cp_s,
+                 sticky_in_cp => sticky_out_dp_s,
                  
                  shift_flag => shift_flag_s,
                  mfract_1_sel => mfract_1_sel_s,
@@ -151,6 +156,9 @@ begin
                  shift_r_ctrl => shift_r_ctrl_s,
                  shift_r_d0 => shift_r_d0_s,
                  shift_flag => shift_flag_s,
+                 
+                 sticky_in_dp => sticky_out_cp_s,
+                 sticky_out_dp => sticky_out_dp_s,
                  
                  ba_en => ba_en_s,
                  ba_sel => ba_sel_s,

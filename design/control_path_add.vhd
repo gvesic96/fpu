@@ -59,9 +59,10 @@ entity control_path_add is
         shift_r_en : out STD_LOGIC;
         shift_r_d0 : out STD_LOGIC; --izlaz koji se povezuje na d0_fsm u shift registru
         
+        sticky_in_cp : in STD_LOGIC;
+        sticky_out_cp : out STD_LOGIC;
         
         shift_flag : out STD_LOGIC; --flag koji se vodi u BIG_ALU i sa 1 oznacava da je bilo pomeranja operanada
-        
         
         mfract_1_sel : out STD_LOGIC;
         mfract_2_sel : out STD_LOGIC;
@@ -106,6 +107,9 @@ architecture Behavioral of control_path_add is
     signal op1_smaller_s, op1_smaller_next : std_logic := '1'; --signal that memorize which operand goes into SHIFT_R/BIG_ALU
     signal exp255_flag_s, exp255_flag_next : std_logic := '0'; --signal flag that notifies if at least one input exp is 255 (at least one input value inf)
     
+    --generisanje ispravnog sticky bita
+    signal sticky_out_s, sticky_out_next : std_logic := '0';
+    
     signal input_comb_s, input_comb_next : std_logic_vector(1 downto 0) := "11"; --signal for determining how many zeros are on input 00 01 10 11
     signal res_sign_s, res_sign_next : std_logic := '0';
 
@@ -114,7 +118,7 @@ begin
     --passing internal signal values to output signals
     res_sign <= res_sign_s;
     shift_flag <= shift_flag_s;
-    
+    sticky_out_cp <= sticky_out_s;
     
     state_proc: process(clk, rst) is
     begin
@@ -129,6 +133,7 @@ begin
           exp255_flag_s <= '0';
           count_temp_s <= (others =>'0');
 	      hidden_value <= (others => '0');
+	      sticky_out_s <= '0';
         else
           if(clk'event and clk='1') then
             count_s <= count_s_next;
@@ -141,6 +146,7 @@ begin
             state_reg <= state_next;
             count_temp_s <= count_temp_next;
 	        hidden_value <= hidden_value_next;
+	        sticky_out_s <= sticky_out_next;
           end if;
         end if;
     end process state_proc;
@@ -153,6 +159,7 @@ begin
         big_alu_sel <= '0';
         ed_reg_en <= '0';
         inc_dec_ctrl <= "00";
+        
         
         --Passing value to selection inputs of mux based on op1_smaller_s
         --op1_smaller_s prevents changing mfract_selection values
@@ -181,6 +188,7 @@ begin
         exp255_flag_next <= exp255_flag_s;
 	    hidden_value_next <= hidden_value;        
         count_temp_next <= count_temp_s;
+        sticky_out_next <= sticky_out_s;
 
         case state_reg is
           
@@ -188,6 +196,7 @@ begin
           when IDLE =>
             shift_flag_next <= '0';
             exp255_flag_next <= '0';
+            sticky_out_next <= '0';
             if(start='1') then
               operands_en <= '1';
               state_next <= LOAD_BUFF;
@@ -343,6 +352,8 @@ begin
                 
           --************************************** SHIFT_SMALLER *****************************************      
           when SHIFT_SMALLER =>
+            sticky_out_next <= sticky_out_s or sticky_in_cp; -- dali bi sticky_in trebao u listu osetljivosti? moguce da ce raditi i bez..
+            
             --u ovom stanju treba da se vrti i da dekrementira brojac count_s do nule svaki takt da pomeri jednom frakciju i da dekrementira brojac  
             if(input_comb_s = "10" or input_comb_s="01") then
               inc_dec_ctrl <= "00"; --if smaller operand is zero exponent then do not increment exponent because larger operand exp is filled in
@@ -384,7 +395,6 @@ begin
           
           --************************************** FRACTION_ADD *****************************************  
           when FRACTION_ADD =>
-            --u sabiranju treba ucitati vrednosti u big alu i dodati jos 2 bita da bi bilo moguce zaokruzivanje GUARD i ROUND bit
             if((input_comb_s = "10" and exp255_flag_s='1') or input_comb_s="01") then
               big_alu_en <= '0'; --izlaz BIG_ALU je na nuli
             else
@@ -440,10 +450,8 @@ begin
                     hidden_value_next <= "01";
                     norm_reg_ctrl <= "10"; --shift right
                     inc_dec_ctrl <= "01"; --icrementing exp
-                    --state_next <= NORM_BUFF;
                     if(norm_exp = "11111110") then
                       state_next <= RESULT_OVERFLOW;
-                      --big_alu_en <= '0';
                     else
                       state_next <= NORM_BUFF;
                     end if;

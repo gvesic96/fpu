@@ -64,6 +64,8 @@ entity data_path_add is
         shift_r_ctrl : in STD_LOGIC_VECTOR(1 downto 0);
         shift_r_d0 : in STD_LOGIC;
         shift_flag : in STD_LOGIC;
+        sticky_in_dp : in STD_LOGIC;
+        sticky_out_dp : out STD_LOGIC;
         
         ba_en : in STD_LOGIC;
         ba_sel : in STD_LOGIC;
@@ -104,7 +106,7 @@ architecture Structural of data_path_add is
     signal fract_ext_1_s, fract_ext_2_s : STD_LOGIC_VECTOR(EXT_WIDTH_FRACT-1 downto 0);
     signal fract_1_s, fract_2_s : STD_LOGIC_VECTOR(EXT_WIDTH_FRACT-1 downto 0);
    
-    signal ba_op_1_s, ba_op_2_s, ba_result_s : STD_LOGIC_VECTOR(EXT_WIDTH_FRACT-1 downto 0); 
+    signal shift_r_val_s, ba_op_1_s, ba_op_2_s, ba_result_s : STD_LOGIC_VECTOR(EXT_WIDTH_FRACT-1 downto 0); 
     signal norm_reg_in_s, norm_reg_out_s : STD_LOGIC_VECTOR(EXT_WIDTH_FRACT-1 downto 0);
     signal round_fract_res_s : STD_LOGIC_VECTOR(EXT_WIDTH_FRACT-1 downto 0);
     
@@ -120,7 +122,9 @@ begin
     exp_1_s <= op1_s(30 downto 23);
     exp_2_s <= op2_s(30 downto 23);
     
+    sticky_out_dp <= shift_r_val_s(0); --izlaz trenutnog sticky bita koji se spaja u control path
     
+    ba_op_1_s <= shift_r_val_s(EXT_WIDTH_FRACT-1 downto 1)&sticky_in_dp; --prvi operand za BIG_ALU sa STICKY bitom generisanim u Control pathu
     ba_op_2_s <= fract_2_s; -- drugi operand za BIG ALU koji nije pomeran
 
     op1_sign <= op1_s(WIDTH-1);
@@ -206,7 +210,7 @@ begin
                  ctrl => shift_r_ctrl,
                  d => fract_1_s,
                  d0_fsm => shift_r_d0,
-                 q => ba_op_1_s -- izmeniti
+                 q => shift_r_val_s -- izmeniti
         );--treba izmeniti dizajn da se resi problem dodatnih GRS bita u shift registru SHIFT_R
 
     big_alu: entity work.big_alu(Behavioral)
