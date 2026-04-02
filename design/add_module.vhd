@@ -43,6 +43,7 @@ entity add_module is
            op2 : in STD_LOGIC_VECTOR(WIDTH-1 downto 0);
            start : in STD_LOGIC;
            
+           fflags : out STD_LOGIC_VECTOR(4 downto 0);
            rdy : out STD_LOGIC;
            result : out STD_LOGIC_VECTOR(WIDTH-1 downto 0)
            );
@@ -60,6 +61,7 @@ architecture Behavioral of add_module is
     signal op1_exp_s, op2_exp_s : STD_LOGIC_VECTOR(WIDTH_EXP-1 downto 0);
     signal norm_exp_s : STD_LOGIC_VECTOR(WIDTH_EXP-1 downto 0);
     signal sticky_out_dp_s : STD_LOGIC;
+    signal nx_flag_s : STD_LOGIC;
 
     --signals from control_path to data_path
     signal op_en_s, ed_reg_en_s, shift_r_d0_s, shift_r_en_s, norm_reg_en_s : STD_LOGIC;
@@ -119,8 +121,10 @@ begin
                  round_en => round_en_s,
                  round_rdy => round_rdy_s,
                  round_carry => round_carry_s,--iz data_patha u control_path
+                 nx_flag_in => nx_flag_s,
                  res_sign => res_sign_s,
                  output_reg_en => oreg_en_s,
+                 fflags => fflags,
                  rdy => rdy
         );
 
@@ -177,6 +181,8 @@ begin
                  ed_val => ed_val_s,
                  round_rdy => round_rdy_s,
                  round_carry => round_carry_s,
+                 nx_flag => nx_flag_s,
+                 
                  result => result
                     
         );

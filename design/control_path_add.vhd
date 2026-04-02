@@ -87,6 +87,10 @@ entity control_path_add is
         round_carry : in STD_LOGIC;
         round_rdy : in STD_LOGIC;
         
+        --Exception flags, all single bit outputs NX=LSB, NV=MSB 
+        fflags : out STD_LOGIC_VECTOR(4 downto 0);
+        nx_flag_in : in STD_LOGIC;
+        
         res_sign : out STD_LOGIC;
         output_reg_en : out STD_LOGIC;
         rdy : out STD_LOGIC
@@ -112,6 +116,12 @@ architecture Behavioral of control_path_add is
     
     signal input_comb_s, input_comb_next : std_logic_vector(1 downto 0) := "11"; --signal for determining how many zeros are on input 00 01 10 11
     signal res_sign_s, res_sign_next : std_logic := '0';
+    
+    signal nv_flag_s, nv_flag_next : STD_LOGIC; --fflags(4)
+    signal dz_flag_s, dz_flag_next : STD_LOGIC; --fflags(3)
+    signal of_flag_s, of_flag_next : STD_LOGIC; --fflags(2)
+    signal uf_flag_s, uf_flag_next : STD_LOGIC; --fflags(1)
+    signal nx_flag_s, nx_flag_next : STD_LOGIC; --fflags(0)
 
 begin
 
@@ -119,6 +129,8 @@ begin
     res_sign <= res_sign_s;
     shift_flag <= shift_flag_s;
     sticky_out_cp <= sticky_out_s;
+    
+    fflags <= nv_flag_s & dz_flag_s & of_flag_s & uf_flag_s & nx_flag_s;
     
     state_proc: process(clk, rst) is
     begin
@@ -134,6 +146,12 @@ begin
           count_temp_s <= (others =>'0');
 	      hidden_value <= (others => '0');
 	      sticky_out_s <= '0';
+	      --exception flags
+	      nv_flag_s <= '0';
+	      uf_flag_s <= '0';
+	      of_flag_s <= '0';
+	      dz_flag_s <= '0';
+	      nx_flag_s <= '0';
         else
           if(clk'event and clk='1') then
             count_s <= count_s_next;
@@ -147,11 +165,17 @@ begin
             count_temp_s <= count_temp_next;
 	        hidden_value <= hidden_value_next;
 	        sticky_out_s <= sticky_out_next;
+            --exception flags
+            nv_flag_s <= nv_flag_next;
+	        uf_flag_s <= uf_flag_next;
+	        of_flag_s <= of_flag_next;
+	        dz_flag_s <= dz_flag_next;
+	        nx_flag_s <= nx_flag_next;
           end if;
         end if;
     end process state_proc;
 
-    control_proc: process(state_reg, start, big_alu_carry, count_s, n_count_s, round_rdy, round_carry) is --za milijev automat treba dodati signale u sensitivity listu? DA
+    control_proc: process(state_reg, start, big_alu_carry, count_s, n_count_s, round_rdy, round_carry, nx_flag_in) is --za milijev automat treba dodati signale u sensitivity listu? DA
       variable count_v : unsigned (8 downto 0) := (others=>'0');
     begin
         rdy <= '0'; --podrazumevana vrednost
@@ -189,6 +213,13 @@ begin
 	    hidden_value_next <= hidden_value;        
         count_temp_next <= count_temp_s;
         sticky_out_next <= sticky_out_s;
+        
+        --fflags
+        nv_flag_next <= nv_flag_s;
+	    uf_flag_next <= uf_flag_s;
+	    of_flag_next <= of_flag_s;
+	    dz_flag_next <= dz_flag_s;
+	    nx_flag_next <= nx_flag_s;
 
         case state_reg is
           
@@ -197,6 +228,12 @@ begin
             shift_flag_next <= '0';
             exp255_flag_next <= '0';
             sticky_out_next <= '0';
+            op1_smaller_next <= '0';
+            nv_flag_next <= '0';
+	        uf_flag_next <= '0';
+	        of_flag_next <= '0';
+	        dz_flag_next <= '0';
+	        nx_flag_next <= '0';
             if(start='1') then
               operands_en <= '1';
               state_next <= LOAD_BUFF;
@@ -220,8 +257,12 @@ begin
             end if;
             
             if((unsigned(op1_exp)=255 and unsigned(op1_fract)>0) or (unsigned(op1_exp)=255 and unsigned(op1_fract)>0)) then
+                --ovde bi trebalo da dodam detekciju sNaN-a i postavljanje invalid operation zastavice
+                if((unsigned(op1_exp)=255 and op1_fract(WIDTH_FRACT-1)='0' and unsigned(op1_fract)>0) or (unsigned(op2_exp)=255 and op2_fract(WIDTH_FRACT-1)='0' and unsigned(op2_fract)>0)) then
+                  nv_flag_next <= '1'; --INVALID OPERATION flag set to high
+                end if;
                 input_comb_next <= "01";
-              else
+            else
               --dodato za rad sa nulom
               if(unsigned(op1_exp)=0 or unsigned(op2_exp)=0) then
                 if(unsigned(op1_exp)=0 and unsigned(op2_exp)=0) then
@@ -238,6 +279,7 @@ begin
                     if(op1_sign = op2_sign) then
                       input_comb_next <= "10"; --situacija u kojoj su brojevi na ulazu (+inf +inf) ili (-inf -inf)
                     else
+                      nv_flag_next <= '1'; --INVALID OPERATION flag set to high
                       input_comb_next <= "01"; --situacija u kojoj su oba broja na ulazu inf, op1=-inf op2=+inf   -> REZULTAT CE BITI NaN
                     end if;
                   else
@@ -337,14 +379,14 @@ begin
                     mux_exp_sel_bot <= '0'; --pass exp from top
                     inc_dec_ctrl <= "11"; --load value into inc_dec module
                 
-                    count_v := (not(unsigned(ed_val)))+1; --da negativnu vrednost prevede iz komplementa dvoje, DOBIJE APSOLUTNU VREDNOST RAZLIKE
+                    count_v := (not(unsigned(ed_val)))+1; --da negativnu vrednost prevede iz komplementa dvojke, DOBIJE APSOLUTNU VREDNOST RAZLIKE
                     count_s_next <= count_v(7 downto 0); --dodeli 8 bita odnosno apsolutnu vrednost razlike bez bita znaka
                     count_temp_next <= count_v(7 downto 0);
                 
                     state_next <= SHIFT_SMALLER;
                   end if;
                 end if;
-                --this line prevents generating negative qNaN, so qNaN value is always 7FC0 0000
+                --this line prevents generating negative qNaN, so qNaN value is always 7FC0 0000 -> Canonical qNaN
                 if(input_comb_s="01") then
                   res_sign_next <= '0';
                 end if;
@@ -426,6 +468,9 @@ begin
               -- 2 cases of normalization register
               when "00000000" =>
                 --RESULT UNDERFLOW, SIGN IS KEPT UNCHANGED
+                --IEEE754 standard requires signaling NX_FLAG when UNDERFLOW or OVERFLOW flag is raised
+                uf_flag_next <= '1'; --UNDERFLOW flag set to high
+                nx_flag_next <= '1'; --INEXACT flag set to high
                 state_next <= RESULT_ZERO;
               
               when others =>
@@ -506,6 +551,10 @@ begin
             
           --************************************** RESULT_OVERFLOW *****************************************
           when RESULT_OVERFLOW =>
+            --IEEE754 standard requires signaling NX_FLAG when UNDERFLOW or OVERFLOW flag is raised
+            of_flag_next <= '1';
+            nx_flag_next <= '1';
+
             big_alu_en <= '0';  
             inc_dec_ctrl <= "00";
             norm_reg_ctrl <= "11";
@@ -514,6 +563,7 @@ begin
           --************************************** ROUND *****************************************    
           when ROUND =>
             round_en <= '1';
+            nx_flag_next <= nx_flag_in;
             if(round_rdy = '1') then
               if(round_carry='1') then
                 hidden_value_next <= hidden_value + 1;
