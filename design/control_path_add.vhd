@@ -563,7 +563,7 @@ begin
           --************************************** ROUND *****************************************    
           when ROUND =>
             round_en <= '1';
-            nx_flag_next <= nx_flag_in;
+            nx_flag_next <= nx_flag_s or nx_flag_in;
             if(round_rdy = '1') then
               if(round_carry='1') then
                 hidden_value_next <= hidden_value + 1;
