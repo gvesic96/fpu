@@ -43,6 +43,7 @@ entity rounding_block is
            fract_out : out STD_LOGIC_VECTOR (WIDTH_EXT_FRACT-1 downto 0); --frakcija je 26 bita sirine 25 downto 0
            exp_out : out STD_LOGIC_VECTOR (WIDTH_EXP-1 downto 0);
            round_rdy : out STD_LOGIC;
+           nx_flag : out STD_LOGIC;
            round_carry : out STD_LOGIC);
 end rounding_block;
 
@@ -63,10 +64,12 @@ begin
     round_grs_s <= unsigned(fract_in(2 downto 0));
     round_val_s <= '0' & unsigned(fract_in(WIDTH_EXT_FRACT-1 downto 3)); --0 kao MSB na pocetku i visa 23 bita ulazne (prosirene) frakcije
     
+    
     round_proc: process (en) is
     begin
       --round_grs_s <= unsigned(fract_in(2 downto 0));
       --round_val_s <= '0' & unsigned(fract_in(WIDTH_EXT_FRACT-1 downto 3)); --0 kao MSB na pocetku i visa 23 bita ulazne frakcije
+    nx_flag <= '0';
     
       if(en='1') then
         exp_out <= exp_in;
@@ -77,14 +80,18 @@ begin
               round_val_s2 <= round_val_s;
             else
               round_val_s2 <= round_val_s + 1;
+              nx_flag <= '1';
             end if;
           --round up
           when "101" =>
             round_val_s2 <= round_val_s + 1;
+            nx_flag <= '1';
           when "110" =>
             round_val_s2 <= round_val_s + 1;
+            nx_flag <= '1';
           when "111" =>
             round_val_s2 <= round_val_s + 1;
+            nx_flag <= '1';
           --truncate
           when others =>
             round_val_s2 <= round_val_s;

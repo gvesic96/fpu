@@ -87,6 +87,7 @@ entity data_path_add is
         
         round_rdy : out STD_LOGIC;
         round_carry : out STD_LOGIC;
+        nx_flag : out STD_LOGIC;
         
         result : out STD_LOGIC_VECTOR(WIDTH-1 downto 0)
         
@@ -284,6 +285,7 @@ begin
                  fract_out => round_fract_res_s(EXT_WIDTH_FRACT-1 downto 0),
                  exp_out => round_exp_out_s,
                  round_rdy => round_rdy,
+                 nx_flag => nx_flag,
                  round_carry => round_carry
         );
 
