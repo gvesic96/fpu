@@ -16,7 +16,13 @@ checker checker_cpath(  clk,
 			hidden_value, 
 			n_count_s, 
 			round_carry, 
-			round_rdy, 
+			round_rdy,
+			nv_flag_s,
+			dz_flag_s,
+			of_flag_s,
+			uf_flag_s,
+			nx_flag_s,
+			fflags, 
 			res_sign);
 
 	default
@@ -115,6 +121,19 @@ checker checker_cpath(  clk,
 	//sig_assert_8: assert property ();
 
 	//sig_assert_7: assert property (input_comb_s==2'b01 |=> ##[1:$]res_sign==0);
+
+	//*********************************************************
+	//------------------- fflags assertions -------------------
+	//---------------------------------------------------------
+
+	    //asserting allowed combinations of flags
+	fflags_assert_1: assert property ((state_reg==READY_STATE && nv_flag_s) |-> fflags==5'b10000);
+	fflags_assert_2: assert property (dz_flag_s==1'b0);
+	fflags_assert_3: assert property ((state_reg==READY_STATE && of_flag_s) |-> fflags==5'b00101);
+	fflags_assert_4: assert property ((state_reg==READY_STATE && uf_flag_s) |-> fflags==5'b00011);
+	fflags_assert_5: assert property ((state_reg==READY_STATE && nx_flag_s) |-> (fflags==5'b00001 || fflags==5'b00101 || fflags==5'b00011));
+
+
 
 	//*********************************************************
 	//------------------- cover points ------------------------
