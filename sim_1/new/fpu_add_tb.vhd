@@ -129,6 +129,13 @@ begin
         --op1_s <= "00000000000000000000000000000000", "01000010000000100100000000000111" after 50ns;
         --op2_s <= "00000000000000000000000000000000", "11000011101101111011111111111111" after 50ns;
         
+        --dva normalizovana broja koja na nepravilan nacin generisu STICKY bit -> pogresan rezultat
+        op1_s <= "00000000000000000000000000000000", "00000001010000000000000000001001" after 50ns; --pomeriti za 4 mesta da se dobije grs=100 a treba 101
+        op2_s <= "00000000000000000000000000000000", "00000011010000000000000000000000" after 50ns; 
+        
+        start_s <= '0', '1' after 250ns, '0' after 350ns;
+        wait until ready_s = '1';
+        wait for 300 ns;
         
         
         --dva normalizovana broja u slucaju kojih dolazi do underflowa, rezultat treba da je negativna nula
@@ -157,7 +164,7 @@ begin
         wait for 300 ns;
         
         
-        --specijalan slucaj predlozio ga chatGPT rezultat treba da je subnormalan broj, odnosno kod mene nula
+        --specijalan slucaj predlozio ga chatGPT rezultat treba da je subnormalan broj, odnosno kod mene nula ? ovde nesto ne valja
         op1_s <= "00000000000000000000000000000000", "00111111100000000000000000000000" after 50ns;
         op2_s <= "00000000000000000000000000000000", "00111100000000000000000000010100" after 50ns;
         
@@ -282,6 +289,21 @@ begin
         op1_s <= "00000000000000000000000000000000", "01111111110000000001000000000000" after 50ns;  --qNan
         op2_s <= "00000000000000000000000000000000", "00000000000000100100000000000111" after 50ns;  --subnormal number
         
+        start_s <= '0', '1' after 250ns, '0' after 350ns;
+        wait until ready_s = '1';
+        wait for 300 ns;
+        
+        --jedan ulaz sNaN, drugi normalizovan broj, rezultat qNaN
+        op1_s <= "00000000000000000000000000000000", "01111111101000000000000000000000" after 50ns;
+        op2_s <= "00000000000000000000000000000000", "01111100100101000100000000000000" after 50ns;
+        
+        start_s <= '0', '1' after 250ns, '0' after 350ns;
+        wait until ready_s = '1';
+        wait for 300 ns;
+        
+        --jedan ulaz sNaN, drugi qNaN, rezultat qNaN
+        op1_s <= "00000000000000000000000000000000", "01111111101000000000000000000000" after 50ns;
+        op2_s <= "00000000000000000000000000000000", "01111111110000000000000000000000" after 50ns;
         
         start_s <= '0', '1' after 250ns, '0' after 350ns;
         
