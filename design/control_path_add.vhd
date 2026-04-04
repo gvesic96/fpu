@@ -229,6 +229,7 @@ begin
             exp255_flag_next <= '0';
             sticky_out_next <= '0';
             op1_smaller_next <= '0';
+            n_count_s_next <= (others=>'0');
             nv_flag_next <= '0';
 	        uf_flag_next <= '0';
 	        of_flag_next <= '0';
@@ -542,7 +543,7 @@ begin
             if(n_count_s = 25) then
               --round_en <= '0';
               --res_sign_next <= '0'; not needed already set before
-              res_sign_next <= '0';
+              --res_sign_next <= '0';
               state_next <= RESULT_ZERO;
             else
               state_next <= ROUND;
