@@ -225,6 +225,7 @@ begin
           
           --************************************** IDLE **********************************************
           when IDLE =>
+			input_comb_next <= "11";
             shift_flag_next <= '0';
             exp255_flag_next <= '0';
             sticky_out_next <= '0';
