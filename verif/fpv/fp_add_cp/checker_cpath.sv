@@ -35,7 +35,7 @@ checker checker_cpath(  clk,
 	default disable iff rst;
 
 	localparam SHIFT_COUNT_MAX = 26; //26 pomeranja daju skrivenu jedinicu na poslednjem bitu prosirene frakcije, za 27 i ona ce ispasti iz prosirene frakcije i broj se moze smatrati nulom
-	localparam NORM_COUNT_MAX = 25;//25 pomeranje u okviru normalizacije za 25 posto n_count_s brojac krece od nule
+	localparam NORM_COUNT_MAX = 25;//25 pomeranje u okviru normalizacije za 25 zato sto n_count_s brojac krece od nule
 
 	typedef enum logic [3:0]{
 	  IDLE            = 4'b0000,
@@ -96,7 +96,7 @@ checker checker_cpath(  clk,
 	//ROUND
 	state_tr_round1: assert property ((state_reg==ROUND && round_rdy==1'b1 && round_carry==1'b1) |=> state_reg==NORM);
 	state_tr_round2: assert property ((state_reg==ROUND && round_rdy==1'b1 && round_carry==1'b0) |=> state_reg==READY_STATE);
-	state_tr_round3: assert property ((state_reg==ROUND && round_rdy==1'b0) |=> state_reg==ROUND);//ova tvrdnja ne moze da se dokaze posto cover tacka nije u prostoru stanja dizajna koje je moguce dosegnuti
+	state_tr_round3: restrict property ((state_reg==ROUND && round_rdy==1'b0) |=> state_reg==ROUND);//ova tvrdnja ne moze da se dokaze posto cover tacka nije u prostoru stanja dizajna koje je moguce dosegnuti
 											//IZMENJENO I U DIZAJNU! VEROVATNO NE POSTOJI SLUCAJ KADA JE round_rdy=0 U OVOM STANJU I ZBOG TOGA NIJE MOGUCE DOKAZATI
 	//RESULT_ZERO
 	state_tr_res_zero: assert property (state_reg==RESULT_ZERO |=> state_reg==READY_STATE);
@@ -104,13 +104,8 @@ checker checker_cpath(  clk,
 	//READY_STATE
 	state_tr_ready: assert property (state_reg==READY_STATE |=> state_reg==IDLE);
 
-	//state_assignment: assert property (state_reg==$past(state_next));
+	//state_assignment: assert property (state_reg==$past(state_next)); ne radi ovako...
 
-	//*********************************************************
-	//------------------- counters assertions -----------------
-	//---------------------------------------------------------
-	
-	//counter_assert_1: assert property(n_count_s);
 
 
 	//*********************************************************
@@ -122,42 +117,46 @@ checker checker_cpath(  clk,
 
 	sig_assert_4: assert property ((state_reg==INPUT_CHECK && (op1_exp==0 ^ op2_exp==0) && (op1_fract != op2_fract)) |=> (input_comb_s==2'b10 || input_comb_s==2'b01));
 		//simbol ^ oznacava xor bitwise operaciju u sistem verilogu
-	sig_assert_5: assert property ((state_reg==EXP_COMPARE && input_comb_s!=2'b11) |=> ($stable(input_comb_s) until_with (state_reg==READY_STATE))); //tvrdnja je ispravna
+	sig_assert_5: assert property ((state_reg==EXP_COMPARE && input_comb_s!=2'b11) |=> ($stable(input_comb_s) until_with (state_reg==READY_STATE))); //tvrdnja je ispravna.. za slucaj da nisu oba norm broja na ulazu, jer njihova razlika moze biti veca od SHIFT_COUNT_MAX i onda se moze vratiti u SHIFT SMALLER sto je opisano u sig_assert_6
 	
 	sig_assert_6: assert property ((state_reg==SHIFT_SMALLER ##1 state_reg==EXP_COMPARE) |=> ($stable(input_comb_s) until_with (state_reg==READY_STATE))); //slucaj da je input_comb=11 i da je >SHIFT_COUNT_MAX
-
-	//sig_assert_6: assert property (state_reg==LOAD_BUFF |-> ##[1:50]rdy ##1 !rdy); //ovaj assert je prosao, ali treba obratiti paznju na ostajanje 255 taktova u shift smaller stanju !
-											//reseno ostajanje 255 taktova u shift_smaller stanju ? Trebalo bi..
-	sig_assert_7: assert property (rdy |=> !rdy);
+			//vrati se u shift smaller samo jednom i onda postavi input_comb_s na 10 i tako ostane stabilan do kraja..
+	
+	sig_assert_7: assert property (rdy |=> !rdy); //proveravanje da li ready signal padne nakon samo jednog takta na visokom nivou
 
 	sig_assert_8: assert property (n_count_s <= NORM_COUNT_MAX); //safety property
 
-	sig_assert_9: assert property ((start && state_reg==IDLE) |=> ##[1:50]rdy ##1 !rdy);//execution completeness safety assertion
+	sig_assert_9: assert property ((start && state_reg==IDLE) |=> ##[1:50]rdy ##1 !rdy);//kompletiranje izvrsavanja - safety assertion property
+
+	sig_assert_10: assert property (!exp255_flag_s |-> input_comb_s!=2'b01);
+
+	sig_assert_11: assert property ((state_reg==READY_STATE && input_comb_s==2'b01) |-> !res_sign); //uspostavljanje znaka u slucaju da na izlazu treba da bude 
 
 	
-
-	  //sticky bit assertion
-	//sig_assert_8: assert property ();
-
-	//sig_assert_7: assert property (input_comb_s==2'b01 |=> ##[1:$]res_sign==0);
-
-
 	//*********************************************************
 	//------------------- deadlock checking -------------------
 	//---------------------------------------------------------
 
-	deadlock_assert_1: assert property (state_reg==SHIFT_SMALLER |-> ##[1:27] state_reg!=SHIFT_SMALLER);//26 + 1 za final check vrednosti koja je dobijena dekrementiranjem u prethodnom ciklusu
-	deadlock_assert_2: assert property (state_reg==NORM |-> ##[1:26] state_reg!=NORM);//26 zato sto se inkrementira i nema ciklus overheada
+	deadlock_assert_1: assert property (state_reg==SHIFT_SMALLER |-> ##[1:SHIFT_COUNT_MAX+1] state_reg!=SHIFT_SMALLER);//26 + 1 za final check vrednosti koja je dobijena dekrementiranjem u prethodnom ciklusu
+	deadlock_assert_2: assert property (state_reg==NORM |-> ##[1:NORM_COUNT_MAX+1] state_reg!=NORM);//26 zato sto se inkrementira i nema ciklus overheada
 
 
 	//*********************************************************
 	//------------------- fflags assertions -------------------
 	//---------------------------------------------------------
 
-	  //sNaN generation
+	  //sNaN on input
 	NV_flag_gen_1: assert property ((state_reg==INPUT_CHECK && ((op1_exp==255 && op1_fract[22]==1'b0 && op1_fract>0) || (op2_exp==255 && op2_fract[22]==1'b0 && op2_fract>0))) |=> nv_flag_s);
 	NV_flag_gen_2: assert property ((state_reg==INPUT_CHECK && ((op1_exp==255 && op1_fract==0) && (op2_exp==255 && op2_fract==0)) && op1_sign!=op2_sign) |=> nv_flag_s);
+	NV_flag_gen_3: assert property (input_comb_s!=2'b01 |-> !nv_flag_s);
 	
+	  //OF_flag_gen_1: assert property (of_flag_s |-> $past(state_reg==RESULT_OVERFLOW));
+	OF_flag_gen_1: assert property (state_reg==RESULT_OVERFLOW |=> of_flag_s);
+
+	UF_flag_gen_1: assert property (uf_flag_s |-> norm_exp==0);
+
+	NX_flag_gen_1: assert property ((uf_flag_s || of_flag_s) |-> nx_flag_s);
+	  //NX_flag_gen_1: assert property (); //generise se u okviru round bloka i besmisleno je tvrditi vrednost ovde.. osim u slucajevima za UF i OF flegove
 
 	  //asserting allowed combinations of fflags
 	fflags_assert_1: assert property ((state_reg==READY_STATE && nv_flag_s) |-> fflags==5'b10000);
@@ -176,7 +175,7 @@ checker checker_cpath(  clk,
 
 	cover_ncount_sig: cover property (state_reg==NORM && n_count_s==NORM_COUNT_MAX && op1_fract!=0 && op2_fract!=0);
 	cover_ncount_sig_0: cover property (state_reg==NORM && n_count_s==NORM_COUNT_MAX-3 && op1_fract!=0 && op2_fract!=0 && op1_fract!=op2_fract);//provereno tacno za N_COUNT_MAX-5
-	cover_ncount_sig_1: cover property (state_reg==NORM && n_count_s==NORM_COUNT_MAX+1);
+	cover_ncount_sig_1: cover property (state_reg==NORM && n_count_s==NORM_COUNT_MAX+1);//ova tacka pokrivenosti ne postoji u prostoru stanja dizajna i dobro je sto je alat nije pronasao
 	//cover_ncount_sig_2: cover property (n_count_s==NORM_COUNT_MAX);
 		
 	cover_rnd_carry_sig: cover property (state_reg==ROUND && round_carry==1'b1); // tacka pokrivenosti za slucaj kada dodje do generisanja bita prenosa prilikom zaokruzivanja rezultata
