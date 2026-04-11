@@ -257,7 +257,7 @@ begin
               exp255_flag_next <= '0';
             end if;
             
-            if((unsigned(op1_exp)=255 and unsigned(op1_fract)>0) or (unsigned(op1_exp)=255 and unsigned(op1_fract)>0)) then
+            if((unsigned(op1_exp)=255 and unsigned(op1_fract)>0) or (unsigned(op2_exp)=255 and unsigned(op2_fract)>0)) then
                 --ovde bi trebalo da dodam detekciju sNaN-a i postavljanje invalid operation zastavice
                 if((unsigned(op1_exp)=255 and op1_fract(WIDTH_FRACT-1)='0' and unsigned(op1_fract)>0) or (unsigned(op2_exp)=255 and op2_fract(WIDTH_FRACT-1)='0' and unsigned(op2_fract)>0)) then
                   nv_flag_next <= '1'; --INVALID OPERATION flag set to high
