@@ -8,7 +8,9 @@ checker checker_cpath(  clk,
 			op1_exp, 
 			op2_exp, 
 			op1_fract, 
-			op2_fract, 
+			op2_fract,
+			op1_sign,
+			op2_sign, 
 			input_comb_s, 
 			ed_val, 
 			count_s, 
@@ -151,6 +153,11 @@ checker checker_cpath(  clk,
 	//*********************************************************
 	//------------------- fflags assertions -------------------
 	//---------------------------------------------------------
+
+	  //sNaN generation
+	NV_flag_gen_1: assert property ((state_reg==INPUT_CHECK && ((op1_exp==255 && op1_fract[22]==1'b0 && op1_fract>0) || (op2_exp==255 && op2_fract[22]==1'b0 && op2_fract>0))) |=> nv_flag_s);
+	NV_flag_gen_2: assert property ((state_reg==INPUT_CHECK && ((op1_exp==255 && op1_fract==0) && (op2_exp==255 && op2_fract==0)) && op1_sign!=op2_sign) |=> nv_flag_s);
+	
 
 	  //asserting allowed combinations of fflags
 	fflags_assert_1: assert property ((state_reg==READY_STATE && nv_flag_s) |-> fflags==5'b10000);
