@@ -35,7 +35,7 @@ checker checker_cpath(  clk,
 	default disable iff rst;
 
 	localparam SHIFT_COUNT_MAX = 26; //26 pomeranja daju skrivenu jedinicu na poslednjem bitu prosirene frakcije, za 27 i ona ce ispasti iz prosirene frakcije i broj se moze smatrati nulom
-					 //OVA VREDNOST JE VAZNA ZBOG ZAOKRUZIVANJA
+					 //OVA VREDNOST JE VAZNA ZBOG ZAOKRUZIVANJA, pogotovo u slucaju ODUZMANJA posto se brojevi oduzimaju ukljucujuci prosirene frakcije !
 	localparam NORM_COUNT_MAX = 25;//25 pomeranje u okviru normalizacije za 25 zato sto n_count_s brojac krece od nule
 
 	typedef enum logic [3:0]{
@@ -88,7 +88,7 @@ checker checker_cpath(  clk,
 	state_tr_norm7: assert property ((state_reg==NORM && norm_exp!=0 && hidden_value==2'b01) |=> state_reg==NORM_BUFF);
 
 	//NORM_BUFF
-	state_tr_nbuff1: assert property ((state_reg==NORM_BUFF && n_count_s==NORM_COUNT_MAX) |=> state_reg==RESULT_ZERO);
+	state_tr_nbuff1: assert property ((state_reg==NORM_BUFF && n_count_s==NORM_COUNT_MAX) |=> state_reg==RESULT_ZERO); //rezultat ce biti nula
 	state_tr_nbuff2: assert property ((state_reg==NORM_BUFF && n_count_s!=NORM_COUNT_MAX) |=> state_reg==ROUND);
 
 	//RESULT_OVERFLOW
@@ -134,13 +134,16 @@ checker checker_cpath(  clk,
 
 	sig_assert_11: assert property ((state_reg==READY_STATE && input_comb_s==2'b01) |-> !res_sign); //uspostavljanje znaka u slucaju da na izlazu treba da bude qNaN
 
-	
+	sig_assert_12: assert property ((state_reg==NORM_BUFF && !exp255_flag_s && n_count_s<25) |-> hidden_value==2'b01); //pravilno generisanje skrivene vrednosti rezultata (hidden_value) nakon NORM iteracija
+
+	sig_assert_13: assert property (state_reg==FRACTION_ADD |-> (norm_exp==op1_exp || norm_exp==op2_exp)); //potvrda da je exponent uskladjen pravilno u momentu sabiranja
+
 	//*********************************************************
 	//------------------- deadlock checking -------------------
 	//---------------------------------------------------------
 
 	deadlock_assert_1: assert property (state_reg==SHIFT_SMALLER |-> ##[1:SHIFT_COUNT_MAX+1] state_reg!=SHIFT_SMALLER);//26 + 1 za final check vrednosti koja je dobijena dekrementiranjem u prethodnom ciklusu
-	deadlock_assert_2: assert property (state_reg==NORM |-> ##[1:NORM_COUNT_MAX+1] state_reg!=NORM);//25+1=26 ali brojac krece od nule tako da je isto 27 kako bi LSB iz prosirene frakcije mogao da se pomeri
+	deadlock_assert_2: assert property (state_reg==NORM |-> ##[1:NORM_COUNT_MAX+1] state_reg!=NORM);//25+1=26 (brojac n_count_s krece od nule)
 
 
 	//*********************************************************
@@ -176,19 +179,33 @@ checker checker_cpath(  clk,
 	//------------------- cover points ------------------------
 	//---------------------------------------------------------
 
-	cvr_shiftcount_sig: cover property(state_reg==SHIFT_SMALLER && count_s==SHIFT_COUNT_MAX);
+	  //NORM_COUNT_MAX=25, SHIFT_COUNT_MAX=26
 
-	//ispitivanje dva ugaona slucaja
-	cvr_count_sig_1: cover property (state_reg==SHIFT_SMALLER && input_comb_s==2'b11 && count_s==24 && input_comb_s==2'b11 && op1_fract[22]==1'b1 && op2_fract[0]==1'b1 && op1_sign==op2_sign);
-	cvr_ncount_sig_1: cover property ((state_reg==NORM && n_count_s==25) ##1 state_reg==NORM_BUFF);
+	//edge cases SHIFT_SMALLER
+	cvr_count_sig_1: cover property(state_reg==SHIFT_SMALLER && count_s==SHIFT_COUNT_MAX);
+	cvr_count_sig_2: cover property (state_reg==SHIFT_SMALLER && input_comb_s==2'b11 && count_s==24 && input_comb_s==2'b11 && op1_fract[22]==1'b1 && op2_fract[0]==1'b1 && op1_sign==op2_sign); //addition
+	cvr_count_sig_3: cover property (state_reg==SHIFT_SMALLER && input_comb_s==2'b11 && count_s==25 && input_comb_s==2'b11 && op1_fract[22]==1'b1 && op2_fract[0]==1'b1 && op1_sign!=op2_sign); //subtraction
+	
+	
+	//edge cases NORM
+	cvr_ncount_sig_1: cover property (state_reg==NORM && n_count_s==NORM_COUNT_MAX && op1_fract!=0 && op2_fract!=0); //slucaj kada je norm_count=25 rezultat treba da je nula
+	cvr_ncount_sig_2: cover property (state_reg==NORM && n_count_s==NORM_COUNT_MAX-3 && op1_fract!=0 && op2_fract!=0 && op1_fract!=op2_fract);//provereno tacno za N_COUNT_MAX-3 dobijen ispravan rezultat
 
-	cover_ncount_sig: cover property (state_reg==NORM && n_count_s==NORM_COUNT_MAX && op1_fract!=0 && op2_fract!=0);
-	cover_ncount_sig_0: cover property (state_reg==NORM && n_count_s==NORM_COUNT_MAX-3 && op1_fract!=0 && op2_fract!=0 && op1_fract!=op2_fract);//provereno tacno za N_COUNT_MAX-3
-	cover_ncount_sig_1: cover property (state_reg==NORM && n_count_s==NORM_COUNT_MAX+1);//ova tacka pokrivenosti ne postoji u prostoru stanja dizajna i dobro je sto je alat nije pronasao
-	//cover_ncount_sig_2: cover property (n_count_s==NORM_COUNT_MAX);
+	  //ugaoni slucaj kada se jedinica pronadje nakon ncount=23 i prosledi se vrednost u hidden_value, u sledecoj iteraciji ncount_s=24 hidden_value=01 sto je ukupno 25 iteracija
+          //NORM stanje ubacuje MSB u hidden_value u svakom taktu, za ncount=24 znaci da je bilo 25 iteracija ukupno hidden_value=01 i zato prelazi na norm_buff i brojac ostaje na 24
+	cvr_ncount_sig_3: cover property ((state_reg==NORM && n_count_s==NORM_COUNT_MAX-1) ##1 (state_reg==NORM_BUFF && hidden_value==2'b01)); //rezultat je razlicit od nule ali je rezultujuca frakcija nula
+	
+	cvr_ncount_sig_4: cover property (state_reg==NORM && n_count_s==NORM_COUNT_MAX);// ovde rezultat treba da je nula posto
+	cvr_ncount_sig_5: cover property (state_reg==NORM && n_count_s==NORM_COUNT_MAX+1);//ova tacka pokrivenosti ne postoji u prostoru stanja dizajna i dobro je sto je alat nije pronasao
+	cvr_ncount_sig_6: cover property ((state_reg==NORM && n_count_s==1) ##1 (state_reg==NORM_BUFF && hidden_value==2'b01)); //provera za vrednost ugaonog slucaja kada je ima samo jedno pomeranja dva NORM
+	cvr_ncount_sig_7: cover property ((state_reg==NORM && n_count_s==0) ##1 (state_reg==NORM_BUFF && hidden_value==2'b01)); //provera za vrednost ugaonog slucaja kada nema pomeranja i ima samo jedno NORM
+	
+	
+	cvr_rnd_carry_sig_1: cover property (state_reg==ROUND && round_carry==1'b1); // tacka pokrivenosti za slucaj kada dodje do generisanja bita prenosa prilikom zaokruzivanja rezultata
 		
-	cover_rnd_carry_sig: cover property (state_reg==ROUND && round_carry==1'b1); // tacka pokrivenosti za slucaj kada dodje do generisanja bita prenosa prilikom zaokruzivanja rezultata
-	cover_ROUND: cover property (state_reg==ROUND && round_rdy==1'b0); //ovu tacku nije moguce pokriti jer ne postoji u prostoru stanja dizajna !
+	cvr_rnd_carry_sig_2: cover property (state_reg==ROUND && round_carry==1'b0 && fflags==5'b00000 && exp255_flag_s==1'b0); //slucaj kada se ne generise prenos u okviru zaokruzivanja broja (redovan obican slucaj obican normalizovan rezultat)	
+
+	cvr_ROUND: cover property (state_reg==ROUND && round_rdy==1'b0); //ovu tacku nije moguce pokriti jer ne postoji u prostoru stanja dizajna !
 	
 
 
