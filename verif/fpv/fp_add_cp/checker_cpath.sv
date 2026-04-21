@@ -13,7 +13,10 @@ checker checker_cpath(  clk,
 			op2_sign, 
 			input_comb_s, 
 			ed_val, 
-			count_s, 
+			count_s,
+			count_temp_s,
+			sticky_out_s, 
+			op1_smaller_s,
 			norm_exp, 
 			hidden_value, 
 			n_count_s, 
@@ -137,6 +140,17 @@ checker checker_cpath(  clk,
 	sig_assert_12: assert property ((state_reg==NORM_BUFF && !exp255_flag_s && n_count_s<25) |-> hidden_value==2'b01); //pravilno generisanje skrivene vrednosti rezultata (hidden_value) nakon NORM iteracija
 
 	sig_assert_13: assert property (state_reg==FRACTION_ADD |-> (norm_exp==op1_exp || norm_exp==op2_exp)); //potvrda da je exponent uskladjen pravilno u momentu sabiranja
+
+
+	//*********************************************************
+	//----------------- Sticky bit checking -------------------
+	//---------------------------------------------------------
+	sig_assert_sticky_1: assert property((state_reg==FRACTION_ADD && (count_temp_s==0 || count_temp_s==1 || count_temp_s==2)) |-> sticky_out_s==0); //ugaoni slucaj
+	sig_assert_sticky_2: assert property((state_reg==FRACTION_ADD && count_temp_s==5 && op1_smaller_s && input_comb_s==2'b11) |-> sticky_out_s==(op1_fract[2] | op1_fract[1] | op1_fract[0])); //primer op1>op2
+	sig_assert_sticky_3: assert property((state_reg==FRACTION_ADD && count_temp_s==5 && !op1_smaller_s && input_comb_s==2'b11) |-> sticky_out_s==(op2_fract[2] | op2_fract[1] | op2_fract[0])); //primer op2>op1
+	sig_assert_sticky_4: assert property((state_reg==FRACTION_ADD && count_temp_s==26 && input_comb_s==2'b11) |-> sticky_out_s==1); //ugaoni slucaj
+
+
 
 	//*********************************************************
 	//------------------- deadlock checking -------------------
