@@ -225,11 +225,12 @@ begin
           
           --************************************** IDLE **********************************************
           when IDLE =>
-			input_comb_next <= "11";
+            input_comb_next <= "11";
             shift_flag_next <= '0';
             exp255_flag_next <= '0';
             sticky_out_next <= '0';
             op1_smaller_next <= '0';
+            count_temp_next <= (others=>'0');
             n_count_s_next <= (others=>'0');
             nv_flag_next <= '0';
 	        uf_flag_next <= '0';
