@@ -125,7 +125,7 @@ begin
     
     sticky_out_dp <= shift_r_val_s(0); --izlaz trenutnog sticky bita koji se spaja u control path
     
-    ba_op_1_s <= shift_r_val_s(EXT_WIDTH_FRACT-1 downto 1)&sticky_in_dp; --prvi operand za BIG_ALU sa STICKY bitom generisanim u Control pathu
+    ba_op_1_s <= shift_r_val_s(EXT_WIDTH_FRACT-1 downto 1) & sticky_in_dp; --prvi operand za BIG_ALU sa STICKY bitom generisanim u Control pathu
     ba_op_2_s <= fract_2_s; -- drugi operand za BIG ALU koji nije pomeran
 
     op1_sign <= op1_s(WIDTH-1);

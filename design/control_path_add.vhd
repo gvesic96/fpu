@@ -187,8 +187,8 @@ begin
         
         --Passing value to selection inputs of mux based on op1_smaller_s
         --op1_smaller_s prevents changing mfract_selection values
-        mfract_1_sel <= not op1_smaller_next;
-        mfract_2_sel <= op1_smaller_next;
+        mfract_1_sel <= not op1_smaller_s;
+        mfract_2_sel <= op1_smaller_s;
         
         mres_sel <= '0';
         mux_exp_sel_bot <= '0';
@@ -229,7 +229,7 @@ begin
             shift_flag_next <= '0';
             exp255_flag_next <= '0';
             sticky_out_next <= '0';
-            op1_smaller_next <= '0';
+            op1_smaller_next <= '1'; --default value
             count_temp_next <= (others=>'0');
             n_count_s_next <= (others=>'0');
             nv_flag_next <= '0';
@@ -252,6 +252,22 @@ begin
           --************************************** INPUT_CHECK ***************************************
           when INPUT_CHECK =>
             ed_reg_en <= '1';
+            
+            --op1_smaller signal generation
+            if(unsigned(op1_exp) > unsigned(op2_exp)) then
+              op1_smaller_next <= '0';  --pusti frakciju iz op2 u shift registar --pusti frakciju iz op1 u BIG_ALU
+            elsif(unsigned(op1_exp) = unsigned(op2_exp)) then
+              if(unsigned(op1_fract) > unsigned(op2_fract)) then
+                op1_smaller_next <= '0';  --pusti frakciju iz op2 u shift registar --pusti frakciju iz op1 u BIG_ALU
+              else
+                --podrazumevana vrednost cak i ako su dve frakcije jednake
+                op1_smaller_next <= '1';  ----pusti frakciju iz op1 u shift registar --pusti frakciju iz op2 u BIG_ALU
+              end if;
+            else
+              --(unsigned(op1_exp) < unsigned(op2_exp))
+              op1_smaller_next <= '1'; --default value
+            end if;
+            
             --detection of inf on input
             if(unsigned(op1_exp)=255 or unsigned(op2_exp)=255) then
               exp255_flag_next <= '1';
@@ -311,14 +327,14 @@ begin
                   --EXP_1 = EXP_2
                   --pusti manju frakciju uvek u shift registar
                   if(unsigned(op1_fract) > unsigned(op2_fract)) then
-                    op1_smaller_next <= '0';                            --pusti frakciju iz op2 u shift registar --pusti frakciju iz op1 u BIG_ALU
+                    --op1_smaller_next <= '0';                            --pusti frakciju iz op2 u shift registar --pusti frakciju iz op1 u BIG_ALU
                     res_sign_next <= op1_sign;                          --dodeli rezultatu znak veceg po apsolutnoj vrednosti
                   elsif(unsigned(op1_fract) < unsigned(op2_fract)) then
-                    op1_smaller_next <= '1';                            --pusti frakciju iz op1 u shift registar --pusti frakciju iz op2 u BIG_ALU
+                    --op1_smaller_next <= '1';                            --pusti frakciju iz op1 u shift registar --pusti frakciju iz op2 u BIG_ALU
                     res_sign_next <= op2_sign;                          --dodeli rezultatu znak veceg po apsolutnoj vrednosti
                   else
                     --EXP1 = EXP2 and FRACT1 = FRACT2
-                    op1_smaller_next <= '1'; --pusti frakciju iz op1 u shift registar --pusti frakciju iz op2 u BIG_ALU
+                    --op1_smaller_next <= '1'; --pusti frakciju iz op1 u shift registar --pusti frakciju iz op2 u BIG_ALU
                 
                     if(op1_sign = op2_sign) then
                       res_sign_next <= op2_sign; --uvek prosledjujem znak operanda koji ide u BIG_ALU
@@ -350,7 +366,7 @@ begin
             
                   if(ed_val(8)='0') then --exponent difference value is positive 
                     -- op1 bigger than op2
-                    op1_smaller_next <= '0';                --pusti frakciju iz op2 u shift_right registar jer je exp2 manji --pusti frakciju iz op1 u BIG_ALU
+                    --op1_smaller_next <= '0';                --pusti frakciju iz op2 u shift_right registar jer je exp2 manji --pusti frakciju iz op1 u BIG_ALU
                     res_sign_next <= op1_sign; --rezultat dobija znak veceg operanda
                 
                     count_s_next <= unsigned(ed_val(7 downto 0)); --sacuva se kao broj ciklusa koje ce biti pomerana vrednost u registru
@@ -370,7 +386,7 @@ begin
                     state_next <= SHIFT_SMALLER;
                   else
                     -- op2 bigger than op1
-                    op1_smaller_next <= '1';  --pusti frakciju iz op1 u shift_right registar jer je exp1 manji  --pusti frakciju iz op2 u BIG ALU
+                    --op1_smaller_next <= '1';  --pusti frakciju iz op1 u shift_right registar jer je exp1 manji  --pusti frakciju iz op2 u BIG ALU
                     res_sign_next <= op2_sign; --rezultat dobija znak veceg operanda
                 
                     if(input_comb_s = "10" or input_comb_s="01") then
@@ -397,7 +413,7 @@ begin
                 
           --************************************** SHIFT_SMALLER *****************************************      
           when SHIFT_SMALLER =>
-            sticky_out_next <= sticky_out_s or sticky_in_cp; -- dali bi sticky_in trebao u listu osetljivosti? moguce da ce raditi i bez..
+            sticky_out_next <= sticky_out_s or sticky_in_cp; -- da li bi sticky_in trebao u listu osetljivosti? moguce da ce raditi i bez..
             
             --u ovom stanju treba da se vrti i da dekrementira brojac count_s do nule svaki takt da pomeri jednom frakciju i da dekrementira brojac  
             if(input_comb_s = "10" or input_comb_s="01") then
