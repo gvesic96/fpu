@@ -36,6 +36,7 @@ entity incr_decr is
     Generic ( WIDTH : positive := 32);
     Port ( clk : in STD_LOGIC;
            rst : in STD_LOGIC;
+           en : in STD_LOGIC;
            op1 : in STD_LOGIC_VECTOR(WIDTH-1 downto 0);
            ctrl : in STD_LOGIC_VECTOR(1 downto 0);
            
@@ -49,26 +50,30 @@ architecture Behavioral of incr_decr is
 
 begin
 
-    increment_decrement_proc: process (clk, rst) is
+    increment_decrement_proc: process (clk, rst, en) is
     begin
         if(rst = '1') then
           q_s <= (others => '0');
         else
           if(rising_edge(clk)) then
-            case ctrl is
-              when "00" =>
-                --hold
-                q_s <= q_s;
-              when "01" =>
-                --increment
-                q_s <= q_s + 1;
-              when "10" =>
-                --decrement
-                q_s <= q_s - 1;
-              when others =>
-                --load
-                q_s <= unsigned(op1);
-            end case;
+            if(en = '1') then
+              case ctrl is
+                when "00" =>
+                  --hold
+                  q_s <= q_s;
+                when "01" =>
+                  --increment
+                  q_s <= q_s + 1;
+                when "10" =>
+                  --decrement
+                  q_s <= q_s - 1;
+                when others =>
+                  --load
+                  q_s <= unsigned(op1);
+              end case;
+            else
+              q_s <= (others=>'1');
+            end if;
           end if;
         end if;
         

@@ -70,7 +70,9 @@ entity control_path_add is
         
         mux_exp_sel_top : out STD_LOGIC;
         mux_exp_sel_bot : out STD_LOGIC;
+        
         inc_dec_ctrl : out STD_LOGIC_VECTOR(1 downto 0);
+        inc_dec_en : out STD_LOGIC;
         
         big_alu_en : out STD_LOGIC;
         big_alu_sel : out STD_LOGIC;
@@ -183,7 +185,7 @@ begin
         big_alu_sel <= '0';
         ed_reg_en <= '0';
         inc_dec_ctrl <= "00";
-        
+        inc_dec_en <= '1';
         
         --Passing value to selection inputs of mux based on op1_smaller_s
         --op1_smaller_s prevents changing mfract_selection values

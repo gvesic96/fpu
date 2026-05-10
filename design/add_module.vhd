@@ -75,6 +75,7 @@ architecture Behavioral of add_module is
     signal oreg_en_s : STD_LOGIC;
     signal res_sign_s : STD_LOGIC;
     signal sticky_out_cp_s : STD_LOGIC;
+    signal inc_dec_en_s : std_logic;
     
 begin
 
@@ -107,7 +108,10 @@ begin
                  mfract_2_sel => mfract_2_sel_s,
                  mux_exp_sel_top => mexp_sel_top_s,
                  mux_exp_sel_bot => mexp_sel_bot_s,
+                 
                  inc_dec_ctrl => inc_dec_ctrl_s,
+                 inc_dec_en => inc_dec_en_s,
+                 
                  big_alu_en => ba_en_s,
                  big_alu_sel => ba_sel_s,
                  mres_sel => mres_sel_s,
@@ -155,6 +159,7 @@ begin
                  mres_sel => mres_sel_s,
                  
                  inc_dec_ctrl => inc_dec_ctrl_s,
+                 inc_dec_en => inc_dec_en_s,
                  
                  shift_r_en => shift_r_en_s,
                  shift_r_ctrl => shift_r_ctrl_s,
