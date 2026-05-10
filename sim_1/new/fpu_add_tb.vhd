@@ -125,9 +125,24 @@ begin
         
         --Scenariji testiranja --**********************--
         
+        
+        --dva normalizovana broja gde se dobije redovno resenje -> op1>op2
+        op1_s <= "00000000000000000000000000000000", "01011001001000100010000000000000" after 50ns;
+        op2_s <= "00000000000000000000000000000000", "01011000001000000010000000000000" after 50ns;
+        
+        start_s <= '0', '1' after 250ns, '0' after 350ns;
+        wait until ready_s = '1';
+        wait for 300 ns;
+        
+        
         --dva normalizovana broja gde se dobije redovno resenje
-        --op1_s <= "00000000000000000000000000000000", "01000010000000100100000000000111" after 50ns;
-        --op2_s <= "00000000000000000000000000000000", "11000011101101111011111111111111" after 50ns;
+        op1_s <= "00000000000000000000000000000000", "01000010000000100100000000000111" after 50ns;
+        op2_s <= "00000000000000000000000000000000", "11000011101101111011111111111111" after 50ns;
+        
+        start_s <= '0', '1' after 250ns, '0' after 350ns;
+        wait until ready_s = '1';
+        wait for 300 ns;
+        
         
         --dva normalizovana broja koja na nepravilan nacin generisu STICKY bit -> pogresan rezultat
         op1_s <= "00000000000000000000000000000000", "00000001010000000000000000001001" after 50ns; --pomeriti za 4 mesta da se dobije grs=100 a treba 101
