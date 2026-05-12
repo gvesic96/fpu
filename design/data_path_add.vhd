@@ -58,6 +58,8 @@ entity data_path_add is
         mfract_2_sel : in STD_LOGIC;
         mres_sel : in STD_LOGIC;
         
+        small_alu_sel : in STD_LOGIC;
+        
         inc_dec_ctrl : in STD_LOGIC_VECTOR(1 downto 0);
         inc_dec_en : in STD_LOGIC;
         --round_ctrl : in STD_LOGIC_VECTOR(1 downto 0);
@@ -160,6 +162,7 @@ begin
         generic map(WIDTH => WIDTH_EXP)
         port map(op1 => op1_s(30 downto 23),
                  op2 => op2_s(30 downto 23),
+                 sel => small_alu_sel,
                  result => ed_val_s
         );
 

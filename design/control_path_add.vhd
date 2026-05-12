@@ -71,6 +71,8 @@ entity control_path_add is
         mux_exp_sel_top : out STD_LOGIC;
         mux_exp_sel_bot : out STD_LOGIC;
         
+        small_alu_sel : out STD_LOGIC := '1';
+        
         inc_dec_ctrl : out STD_LOGIC_VECTOR(1 downto 0);
         inc_dec_en : out STD_LOGIC;
         
@@ -177,7 +179,7 @@ begin
         end if;
     end process state_proc;
 
-    control_proc: process(state_reg, start, big_alu_carry, count_s, n_count_s, round_rdy, round_carry, nx_flag_in) is --za milijev automat treba dodati signale u sensitivity listu? DA
+    control_proc: process(state_reg, start, big_alu_carry, count_s, n_count_s, round_rdy, round_carry, nx_flag_in) is
       variable count_v : unsigned (8 downto 0) := (others=>'0');
     begin
         rdy <= '0'; --podrazumevana vrednost
@@ -186,6 +188,7 @@ begin
         ed_reg_en <= '0';
         inc_dec_ctrl <= "00";
         inc_dec_en <= '1';
+        small_alu_sel <= '1';
         
         --Passing value to selection inputs of mux based on op1_smaller_s
         --op1_smaller_s prevents changing mfract_selection values
