@@ -39,20 +39,20 @@ entity fp_mul_big_alu_dp is
            op1_multiplicand : in STD_LOGIC_VECTOR(WIDTH-1 downto 0);
            op2_multiplier : in STD_LOGIC_VECTOR(WIDTH-1 downto 0);
            
-           en_product : in STD_LOGIC;
+           product_en : in STD_LOGIC;
            
-           en_multiplicand : in STD_LOGIC;
-           d0_fsm_multiplicand : in STD_LOGIC;
-           ctrl_multiplicand : in STD_LOGIC_VECTOR(1 downto 0);
+           multiplicand_en : in STD_LOGIC;
+           multiplicand_d0_fsm : in STD_LOGIC;
+           multiplicand_ctrl : in STD_LOGIC_VECTOR(1 downto 0);
            
-           en_multiplier : in STD_LOGIC;
-           d0_fsm_multiplier : in STD_LOGIC;
-           ctrl_multiplier : in STD_LOGIC_VECTOR(1 downto 0);
+           multiplier_en : in STD_LOGIC;
+           multiplier_d0_fsm : in STD_LOGIC;
+           multiplier_ctrl : in STD_LOGIC_VECTOR(1 downto 0);
            
            ba_alu_en : in STD_LOGIC;
            
-           q_multiplicand : out STD_LOGIC_VECTOR(2*WIDTH-1 downto 0);
-           q_multiplier : out STD_LOGIC_VECTOR(WIDTH-1 downto 0);
+           multiplicand_q : out STD_LOGIC_VECTOR(2*WIDTH-1 downto 0);
+           multiplier_q : out STD_LOGIC_VECTOR(WIDTH-1 downto 0);
            
            ba_result : out STD_LOGIC_VECTOR(2*WIDTH-1 downto 0)
            );
@@ -60,24 +60,24 @@ end fp_mul_big_alu_dp;
 
 architecture Structural of fp_mul_big_alu_dp is
 
-    signal q_multiplicand_s : STD_LOGIC_VECTOR(2*WIDTH-1 downto 0);
-    signal q_multiplier_s : STD_LOGIC_VECTOR(WIDTH-1 downto 0);
-    signal d_product_s, q_product_s : STD_LOGIC_VECTOR(2*WIDTH-1 downto 0);
+    signal multiplicand_q_s : STD_LOGIC_VECTOR(2*WIDTH-1 downto 0);
+    signal multiplier_q_s : STD_LOGIC_VECTOR(WIDTH-1 downto 0);
+    signal product_d_s, product_q_s : STD_LOGIC_VECTOR(2*WIDTH-1 downto 0);
 
 begin
     
     
-    ba_result <= q_product_s;
+    ba_result <= product_q_s;
     
     multiplicand: entity work.shift_reg_d0(Behavioral)
         generic map(WIDTH => 2*WIDTH)
         port map(clk => clk,
                  rst => rst,
-                 en => en_multiplicand,
-                 ctrl => ctrl_multiplicand,
-                 d0_fsm => d0_fsm_multiplicand,
+                 en => multiplicand_en,
+                 ctrl => multiplicand_ctrl,
+                 d0_fsm => multiplicand_d0_fsm,
                  d => op1_multiplicand,
-                 q => q_multiplicand_s
+                 q => multiplicand_q_s
         );
         
     
@@ -85,28 +85,28 @@ begin
         generic map(WIDTH => WIDTH)
         port map(clk => clk,
                  rst => rst,
-                 en => en_multiplier,
-                 ctrl => ctrl_multiplier,
-                 d0_fsm => d0_fsm_multiplier,
+                 en => multiplier_en,
+                 ctrl => multiplier_ctrl,
+                 d0_fsm => multiplier_d0_fsm,
                  d => op2_multiplier,
-                 q => q_multiplier_s
+                 q => multiplier_q_s
         );
     
     product: entity work.d_reg(Behavioral)
         generic map(WIDTH => 2*WIDTH)
         port map(clk => clk,
                  rst => rst,
-                 en => en_product,
-                 d => d_product_s,
-                 q => q_product_s
+                 en => product_en,
+                 d => product_d_s,
+                 q => product_q_s
         );
     
     alu: entity work.fp_mul_ba_alu(Behavioral)
         generic map(WIDTH => 2*WIDTH)
-        port map(op1 => q_product_s,
-                 op2 => q_multiplicand_s,
+        port map(op1 => product_q_s,
+                 op2 => multiplicand_q_s,
                  en => ba_alu_en,
-                 result => d_product_s
+                 result => product_d_s
         );
     
 

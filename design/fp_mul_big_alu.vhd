@@ -49,15 +49,15 @@ architecture Structural of fp_mul_big_alu is
     signal ba_result_s : std_logic_vector(2*WIDTH-1 downto 0);
     
     --signals from control_path to data_path
-    signal en_product_s, en_multiplicand_s, en_multiplier_s : std_logic;
+    signal product_en_s, multiplicand_en_s, multiplier_en_s : std_logic;
     signal d0_fsm_s : std_logic;
     --signal d0_fsm_multiplier_s, d0_fsm_multiplicand_s : std_logic;
-    signal ctrl_multiplier_s, ctrl_multiplicand_s : std_logic_vector(1 downto 0);
+    signal multiplier_ctrl_s, multiplicand_ctrl_s : std_logic_vector(1 downto 0);
     signal ba_alu_en_s : std_logic;
     
     --signals from data_path to control_path
-    signal q_multiplier_s : std_logic_vector(WIDTH-1 downto 0);
-    signal q_multiplicand_s : std_logic_vector(2*WIDTH-1 downto 0);
+    signal multiplier_q_s : std_logic_vector(WIDTH-1 downto 0);
+    signal multiplicand_q_s : std_logic_vector(2*WIDTH-1 downto 0);
     
     
 
@@ -71,8 +71,8 @@ begin
                  rst => rst,
                  ba_start => ba_start,
                  d0_fsm => d0_fsm_s,
-                 q_multiplicand => q_multiplicand_s,
-                 q_multiplier => q_multiplier_s
+                 multiplicand_q => multiplicand_q_s,
+                 multiplier_q => multiplier_q_s
         );
 
 
@@ -85,20 +85,20 @@ begin
                  op1_multiplicand => op1,
                  op2_multiplier => op2,
                  
-                 en_product => en_product_s, 
+                 product_en => product_en_s, 
       
-                 en_multiplicand => en_multiplicand_s,
-                 d0_fsm_multiplicand => d0_fsm_s,
-                 ctrl_multiplicand  => ctrl_multiplicand_s,
+                 multiplicand_en => multiplicand_en_s,
+                 multiplicand_d0_fsm => d0_fsm_s,
+                 multiplicand_ctrl  => multiplicand_ctrl_s,
            
-                 en_multiplier => en_multiplier_s,
-                 d0_fsm_multiplier => d0_fsm_s,
-                 ctrl_multiplier => ctrl_multiplier_s,
+                 multiplier_en => multiplier_en_s,
+                 multiplier_d0_fsm => d0_fsm_s,
+                 multiplier_ctrl => multiplier_ctrl_s,
            
                  ba_alu_en => ba_alu_en_s,
            
-                 q_multiplicand => q_multiplicand_s,
-                 q_multiplier => q_multiplier_s,
+                 multiplicand_q => multiplicand_q_s,
+                 multiplier_q => multiplier_q_s,
                  ba_result => ba_result_s
         );
 

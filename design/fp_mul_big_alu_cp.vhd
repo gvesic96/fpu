@@ -38,15 +38,15 @@ entity fp_mul_big_alu_cp is
            rst : in STD_LOGIC;
            ba_start : in STD_LOGIC;
            
-           q_multiplicand : in STD_LOGIC_VECTOR(2*WIDTH-1 downto 0);
-           q_multiplier : in STD_LOGIC_VECTOR(WIDTH-1 downto 0);
+           multiplicand_q : in STD_LOGIC_VECTOR(2*WIDTH-1 downto 0);
+           multiplier_q : in STD_LOGIC_VECTOR(WIDTH-1 downto 0);
            
            d0_fsm : out STD_LOGIC;
            
-           en_multiplicand : out STD_LOGIC;
-           ctrl_multiplicand : out STD_LOGIC_VECTOR(1 downto 0);
-           en_multiplier : out STD_LOGIC;
-           ctrl_multiplier : out STD_LOGIC_VECTOR(1 downto 0);
+           multiplicand_en : out STD_LOGIC;
+           multiplicand_ctrl : out STD_LOGIC_VECTOR(1 downto 0);
+           multiplier_en : out STD_LOGIC;
+           multiplier_ctrl : out STD_LOGIC_VECTOR(1 downto 0);
            
            ba_alu_en : out STD_LOGIC
            
@@ -79,7 +79,7 @@ begin
     end process state_proc;
 
 
-    control_proc: process (state_reg, ba_start, q_multiplicand, q_multiplier) is
+    control_proc: process (state_reg, ba_start, multiplicand_q, multiplier_q) is
     begin
     
         count_s_next <= count_s;
@@ -96,13 +96,6 @@ begin
             end if;
           
           when MUL =>
-            if(count_s<24) then
-              --add multiplicand and product via ba_alu
-              --shift multiplicand right 10
-              --shift multiplier left 01
-            end if;
-            
-            
             
             
         
