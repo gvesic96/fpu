@@ -32,14 +32,17 @@ use IEEE.STD_LOGIC_1164.ALL;
 --use UNISIM.VComponents.all;
 
 entity fp_mul_big_alu is
-    Generic (WIDTH : positive := 24);
+    Generic (WIDTH : positive := 24;
+             WIDTH_COUNTER : positive := 5
+    );
     Port ( clk : in STD_LOGIC;
            rst : in STD_LOGIC;
            ba_start : in STD_LOGIC;
            op1 : in STD_LOGIC_VECTOR(WIDTH-1 downto 0);
            op2 : in STD_LOGIC_VECTOR(WIDTH-1 downto 0);
            
-           result : out STD_LOGIC_VECTOR(WIDTH-1 downto 0)
+           rdy : out STD_LOGIC;
+           result : out STD_LOGIC_VECTOR(2*WIDTH-1 downto 0)
            );
 end fp_mul_big_alu;
 
@@ -47,6 +50,7 @@ architecture Structural of fp_mul_big_alu is
 
 
     signal ba_result_s : std_logic_vector(2*WIDTH-1 downto 0);
+    
     
     --signals from control_path to data_path
     signal product_en_s, multiplicand_en_s, multiplier_en_s : std_logic;
@@ -66,13 +70,24 @@ begin
     result <= ba_result_s;
 
     ba_control_path: entity work.fp_mul_big_alu_cp(Behavioral)
-        generic map(WIDTH => WIDTH)
+        generic map(WIDTH => WIDTH,
+                    WIDTH_COUNTER => WIDTH_COUNTER
+        )
         port map(clk => clk,
                  rst => rst,
                  ba_start => ba_start,
-                 d0_fsm => d0_fsm_s,
                  multiplicand_q => multiplicand_q_s,
-                 multiplier_q => multiplier_q_s
+                 multiplier_q => multiplier_q_s,
+                 product_en => product_en_s,
+                 d0_fsm => d0_fsm_s,
+                 multiplicand_en => multiplicand_en_s,
+                 multiplicand_ctrl => multiplicand_ctrl_s,
+                 multiplier_en => multiplier_en_s,
+                 multiplier_ctrl => multiplier_ctrl_s,
+           
+                 ba_alu_en => ba_alu_en_s,
+           
+                 rdy => rdy
         );
 
 

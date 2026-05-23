@@ -63,11 +63,15 @@ architecture Structural of fp_mul_big_alu_dp is
     signal multiplicand_q_s : STD_LOGIC_VECTOR(2*WIDTH-1 downto 0);
     signal multiplier_q_s : STD_LOGIC_VECTOR(WIDTH-1 downto 0);
     signal product_d_s, product_q_s : STD_LOGIC_VECTOR(2*WIDTH-1 downto 0);
+    signal op1_multiplicand_s : STD_LOGIC_VECTOR(2*WIDTH-1 downto 0);
 
 begin
     
-    
+    op1_multiplicand_s <= x"000000" & op1_multiplicand;
     ba_result <= product_q_s;
+    
+    multiplicand_q <= multiplicand_q_s;
+    multiplier_q <= multiplier_q_s;
     
     multiplicand: entity work.shift_reg_d0(Behavioral)
         generic map(WIDTH => 2*WIDTH)
@@ -76,7 +80,7 @@ begin
                  en => multiplicand_en,
                  ctrl => multiplicand_ctrl,
                  d0_fsm => multiplicand_d0_fsm,
-                 d => op1_multiplicand,
+                 d => op1_multiplicand_s,
                  q => multiplicand_q_s
         );
         
