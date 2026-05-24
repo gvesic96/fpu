@@ -55,7 +55,6 @@ architecture Structural of fp_mul_big_alu is
     --signals from control_path to data_path
     signal product_en_s, multiplicand_en_s, multiplier_en_s : std_logic;
     signal d0_fsm_s : std_logic;
-    --signal d0_fsm_multiplier_s, d0_fsm_multiplicand_s : std_logic;
     signal multiplier_ctrl_s, multiplicand_ctrl_s : std_logic_vector(1 downto 0);
     signal ba_alu_en_s : std_logic;
     

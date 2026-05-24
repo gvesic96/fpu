@@ -56,7 +56,7 @@ begin
 
   --ovde je potrebno instancirati control_path_fp_mul i data_path_fp_mul i povezati ih
 
-    fp_mul_control_path: entity work.control_path_fp_mul(Behavioral)
+    control_path: entity work.control_path_fp_mul(Behavioral)
         port map(clk => clk,
                  rst => rst
         );
@@ -64,7 +64,7 @@ begin
 
 
 
-    fp_mul_data_path: entity work.data_path_fp_mul(Structural)
+    data_path: entity work.data_path_fp_mul(Structural)
         port map(clk => clk,
                  rst => rst
         );

@@ -43,10 +43,15 @@ entity data_path_fp_mul is
            op2 : in STD_LOGIC_VECTOR(WIDTH-1 downto 0);
            
            operands_en : in STD_LOGIC;
+           exp_reg_en : in STD_LOGIC;
            sa_sel : in STD_LOGIC;
            
+           ba_start : in STD_LOGIC;
+           ba_rdy : out STD_LOGIC;
            
-           --rdy : out STD_LOGIC;
+           mres_sel : in STD_LOGIC;
+           
+           
            result : out STD_LOGIC_VECTOR(WIDTH-1 downto 0)
            
     );
@@ -55,11 +60,14 @@ end data_path_fp_mul;
 architecture Structural of data_path_fp_mul is
 
 
-    
+    --signals inside datapath
     signal op1_s, op2_s : STD_LOGIC_VECTOR(WIDTH-1 downto 0);
     signal op1_exp_s, op2_exp_s : STD_LOGIC_VECTOR(WIDTH_EXP-1 downto 0);
     signal op1_fract_s, op2_fract_s : STD_LOGIC_VECTOR(WIDTH_FRACT-1 downto 0);
     signal exp_val_s, sa_result_s : STD_LOGIC_VECTOR(WIDTH_EXP downto 0);
+    signal op1_fract_ext_s, op2_fract_ext_s : STD_LOGIC_VECTOR(WIDTH_FRACT downto 0);
+    signal ba_result_s, round_fract_res_s, norm_block_in_s : STD_LOGIC_VECTOR(2*WIDTH_FRACT-1 downto 0);
+    
     
     
 begin
@@ -68,6 +76,14 @@ begin
     op1_exp_s <= op1_s(WIDTH-2 downto WIDTH_FRACT);
     op2_exp_s <= op2_s(WIDTH-2 downto WIDTH_FRACT);
     
+    op1_fract_s <= op1_s(WIDTH_FRACT-1 downto 0);
+    op2_fract_s <= op2_s(WIDTH_FRACT-1 downto 0);
+
+    ------------------------------------------------
+    --extended inputs for BIG_ALU - 24 bits in total
+    op1_fract_ext_s <= '1'&op1_fract_s;
+    op2_fract_ext_s <= '1'&op2_fract_s;
+
 
     op1_reg: entity work.d_reg(Behavioral)
         generic map(WIDTH => WIDTH)
@@ -100,19 +116,35 @@ begin
         generic map(WIDTH => WIDTH_EXP+1)
         port map(clk => clk,
                  rst => rst,
+                 en => exp_reg_en,
                  d => sa_result_s,
                  q => exp_val_s
         );
 
     
+    big_alu_mul: entity work.fp_mul_big_alu(Structural)
+        generic map(WIDTH => WIDTH_FRACT+1,
+                    WIDTH_COUNTER => 5
+                    )
+        port map(clk => clk,
+                 rst => rst,
+                 ba_start => ba_start,
+                 op1 => op1_fract_ext_s,
+                 op2 => op2_fract_ext_s,
+                 rdy => ba_rdy,
+                 result => ba_result_s
+        );
 
+    mux_norm_fract: entity work.mux2on1(Behavioral)
+        generic map(WIDTH => 2*WIDTH)
+        port map(x0 => ba_result_s,
+                 x1 => round_fract_res_s,
+                 sel => mres_sel,
+                 y => norm_block_in_s
+        );
 
-
-
-
-
-
-
+    
+    --norm_block
 
 
 
