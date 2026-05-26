@@ -51,6 +51,7 @@ entity data_path_fp_mul is
            
            mres_sel : in STD_LOGIC;
            
+           norm_block_en : in STD_LOGIC;
            
            result : out STD_LOGIC_VECTOR(WIDTH-1 downto 0)
            
@@ -67,7 +68,7 @@ architecture Structural of data_path_fp_mul is
     signal exp_val_s, sa_result_s : STD_LOGIC_VECTOR(WIDTH_EXP downto 0);
     signal op1_fract_ext_s, op2_fract_ext_s : STD_LOGIC_VECTOR(WIDTH_FRACT downto 0);
     signal ba_result_s, round_fract_res_s, norm_block_in_s : STD_LOGIC_VECTOR(2*WIDTH_FRACT-1 downto 0);
-    
+    signal norm_block_res_s : STD_LOGIC_VECTOR(WIDTH_FRACT+2 downto 0);
     
     
 begin
@@ -144,8 +145,12 @@ begin
         );
 
     
-    --norm_block
-
+    norm_block : entity work.fp_mul_norm_block(Behavioral)
+        generic map(WIDTH => WIDTH_FRACT+1)
+        port map(en => norm_block_en,
+                 fract_in => ba_result_s,
+                 fract_out => norm_block_res_s
+        );
 
 
 end Structural;
