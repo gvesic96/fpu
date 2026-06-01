@@ -250,6 +250,7 @@ begin
             end if;
           
           --************************************** LOAD_BUFF *****************************************
+          --ukloniti ovo stanje
           when LOAD_BUFF =>
             ed_reg_en <= '1';
             state_next <= INPUT_CHECK;
@@ -562,6 +563,7 @@ begin
             end case;
             
           --************************************** NORM_BUFF *****************************************
+          --ukloniti ovo stanje
           when NORM_BUFF =>
             if(n_count_s = 25) then
               --round_en <= '0';

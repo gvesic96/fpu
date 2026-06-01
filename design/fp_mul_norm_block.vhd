@@ -32,37 +32,42 @@ use IEEE.STD_LOGIC_1164.ALL;
 --use UNISIM.VComponents.all;
 
 entity fp_mul_norm_block is
-    Generic (WIDTH : positive := 32);
+    Generic (WIDTH : positive := 48;
+             WIDTH_FRACT : positive := 23;
+             WIDTH_GRS : positive := 3
+    );
     Port ( --clk : in STD_LOGIC;
            en : in STD_LOGIC;
-           fract_in : in STD_LOGIC_VECTOR(2*WIDTH-1 downto 0);
+           fract_in : in STD_LOGIC_VECTOR(WIDTH-1 downto 0);
            
            
-           fract_out : out STD_LOGIC_VECTOR(WIDTH+1 downto 0)
+           fract_out : out STD_LOGIC_VECTOR(WIDTH_FRACT+WIDTH_GRS-1 downto 0)
     
     );
 end fp_mul_norm_block;
 
 architecture Behavioral of fp_mul_norm_block is
 
-    signal fract_in_s : STD_LOGIC_VECTOR(WIDTH-2 downto 0);
+    signal fract_in_s : STD_LOGIC_VECTOR(WIDTH_FRACT-1 downto 0);
     signal guard_s, round_s, sticky_s : STD_LOGIC;
+    
+    
     
 begin
 
     norm_process : process (en, fract_in) is
         begin
           if(en = '1') then
-            if(fract_in(2*WIDTH-1 downto 2*WIDTH-2)="10") then
+            if(fract_in(WIDTH-1 downto WIDTH-2)="10") then
               --sticky_s <= or fract_in(21 downto 0);
               sticky_s <= fract_in(21) or fract_in(20) or fract_in(19) or fract_in(18) or fract_in(17) or fract_in(16) or fract_in(15) or fract_in(14) or fract_in(13) or fract_in(12) or fract_in(11) or fract_in(10) or fract_in(9) or fract_in(8) or fract_in(7) or fract_in(6) or fract_in(5) or fract_in(4) or fract_in(3) or fract_in(2) or fract_in(1) or fract_in(0);
-              fract_in_s <= fract_in(2*WIDTH-2 downto 24);
+              fract_in_s <= fract_in(WIDTH-2 downto 24);
               guard_s <= fract_in(23);
               round_s <= fract_in(22);
             else
               --sticky_s <= or fract_in(20 downto 0);
               sticky_s <= fract_in(20) or fract_in(19) or fract_in(18) or fract_in(17) or fract_in(16) or fract_in(15) or fract_in(14) or fract_in(13) or fract_in(12) or fract_in(11) or fract_in(10) or fract_in(9) or fract_in(8) or fract_in(7) or fract_in(6) or fract_in(5) or fract_in(4) or fract_in(3) or fract_in(2) or fract_in(1) or fract_in(0);
-              fract_in_s <= fract_in(2*WIDTH-3 downto 23);
+              fract_in_s <= fract_in(WIDTH-3 downto 23);
               guard_s <= fract_in(22);
               round_s <= fract_in(21);
             end if;
