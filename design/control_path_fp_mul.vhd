@@ -47,7 +47,11 @@ entity control_path_fp_mul is
            
            operands_en : out STD_LOGIC;
            sa_sel : out STD_LOGIC;
+           exp_val : in STD_LOGIC_VECTOR(WIDTH_EXP downto 0); --9bits wide
            exp_reg_en : out STD_LOGIC;
+           
+           ba_en : out STD_LOGIC;
+           
            
            fflags : out STD_LOGIC_VECTOR(4 downto 0);
            rdy : out STD_LOGIC
@@ -66,7 +70,8 @@ architecture Behavioral of control_path_fp_mul is
     signal res_sign_s, res_sign_next : STD_LOGIC := '0';
     
     signal input_comb_s, input_comb_next : STD_LOGIC_VECTOR(1 downto 0);
-    
+    signal exp255_flag_s, exp255_flag_next : STD_LOGIC;
+    signal ba_work_flag_s, ba_work_flag_next : STD_LOGIC;
     
     signal nv_flag_s, nv_flag_next : STD_LOGIC; --fflags(4)
     signal dz_flag_s, dz_flag_next : STD_LOGIC; --fflags(3)
@@ -92,11 +97,15 @@ begin
           state_reg <= IDLE;
           res_sign_s <= '0';
           input_comb_s <= "11";
+          exp255_flag_s <= '0';
+          ba_work_flag_s <= '0';
         else
           if(clk'event and clk='1') then
             state_reg <= state_next;
             res_sign_s <= res_sign_next;
             input_comb_s <= input_comb_next;
+            exp255_flag_s <= exp255_flag_next;
+            ba_work_flag_s <= ba_work_flag_next;
           end if;
         
         end if;
@@ -106,13 +115,16 @@ begin
 
 
 
-    control_proc: process(state_reg, op1, op2) is
+    control_proc: process(state_reg, op1, op2, input_comb_s, exp_val, exp255_flag_s, ba_work_flag_s) is
     begin
         
         operands_en <= '0';
         sa_sel <= '0';
         res_sign_next <= res_sign_s;
         input_comb_next <= input_comb_s;
+        exp255_flag_next <= exp255_flag_s;
+        ba_en <= '0';
+        ba_work_flag_next <= ba_work_flag_s;
         
         nv_flag_next <= nv_flag_s;    
         
@@ -120,6 +132,7 @@ begin
           
           --************************************** IDLE **********************************************
           when IDLE =>
+            ba_work_flag_next <= '0';
             if(start='1') then
               state_next <= INPUT_CHECK;
               operands_en <= '1';
@@ -169,6 +182,7 @@ begin
                 end if;
               --op1 = inf
               elsif(unsigned(op1_exp_s)=255 and unsigned(op1_fract_s)=0) then
+                exp255_flag_next <= '1';
                 if(unsigned(op2_exp_s)=0) then
                   --inf*0 --za nulu nije bitna frakcija jer subnormalne brojeve racunam kao nulu
                   input_comb_next <= "01";
@@ -182,6 +196,7 @@ begin
                 end if;
               --op2 = inf
               elsif(unsigned(op2_exp_s)=255 and unsigned(op2_fract_s)=0) then
+                exp255_flag_next <= '1';
                 if(unsigned(op1_exp_s)=0) then
                   --0*inf
                   input_comb_next <= "01";
@@ -218,7 +233,32 @@ begin
         
           --*************************************** MUL ******************************************
           when MUL =>
+            if(ba_work_flag_s='0') then
+              if(input_comb_s="11") then
+                if(unsigned(exp_val)>254) then
+                  --state_next <= RESULT_INF;
+                  of_flag_next <= '1';
+                  nx_flag_next <= '1';
+                else
+                  ba_start <= '1';
+                  ba_work_flag_next <= '1';
+                  state_next <= MUL;
+                end if;
+              end if;
+            else
+              --ba_work_flag_s = 1
+              if(ba_rdy='0') then
+                state_next <= MUL;
+              else
+                ba_work_flag_next <= '1';
+                state_next <= NORM;
+              end if;
+            end if;
             
+          --*************************************** MUL ******************************************
+          when NORM =>
+        
+        
         
         
         end case;

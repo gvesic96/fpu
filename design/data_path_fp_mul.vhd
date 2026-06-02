@@ -46,6 +46,7 @@ entity data_path_fp_mul is
            
            operands_en : in STD_LOGIC;
            exp_reg_en : in STD_LOGIC;
+           exp_val : out STD_LOGIC_VECTOR(WIDTH_EXP downto 0); --9bits wide
            sa_sel : in STD_LOGIC;
            
            ba_start : in STD_LOGIC;
@@ -103,6 +104,9 @@ begin
     --extended inputs for BIG_ALU - 24 bits in total
     op1_fract_ext_s <= '1'&op1_fract_s;
     op2_fract_ext_s <= '1'&op2_fract_s;
+
+
+    exp_val <= exp_val_s;
 
 
     op1_reg: entity work.d_reg(Behavioral)
