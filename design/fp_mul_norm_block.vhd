@@ -36,7 +36,8 @@ entity fp_mul_norm_block is
              WIDTH_FRACT : positive := 23;
              WIDTH_GRS : positive := 3
     );
-    Port ( --clk : in STD_LOGIC;
+    Port ( clk : in STD_LOGIC;
+           rst : in STD_LOGIC;
            en : in STD_LOGIC;
            fract_in : in STD_LOGIC_VECTOR(WIDTH-1 downto 0);
            
@@ -50,7 +51,7 @@ architecture Behavioral of fp_mul_norm_block is
 
     signal fract_in_s : STD_LOGIC_VECTOR(WIDTH_FRACT-1 downto 0);
     signal guard_s, round_s, sticky_s : STD_LOGIC;
-    
+    signal fract_out_s : STD_LOGIC_VECTOR(WIDTH_FRACT+WIDTH_GRS-1 downto 0);
     
     
 begin
@@ -79,7 +80,21 @@ begin
           end if;
         end process norm_process;
 
-    --normalized output fraction 26 bits wide
-    fract_out <= fract_in_s & guard_s & round_s & sticky_s;
 
+    d_reg: process (rst, clk) is
+        begin
+          if(rst='1') then
+            fract_out_s <= (others=>'0');
+          else
+            if(rising_edge(clk)) then
+              fract_out_s <= fract_in_s & guard_s & round_s & sticky_s;
+            end if;
+          end if;
+        end process d_reg;
+
+    --normalized output fraction 26 bits wide
+    --fract_out <= fract_in_s & guard_s & round_s & sticky_s;
+    fract_out <= fract_out_s;
+    
+    
 end Behavioral;
