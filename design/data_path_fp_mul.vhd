@@ -44,6 +44,9 @@ entity data_path_fp_mul is
            op2 : in STD_LOGIC_VECTOR(WIDTH-1 downto 0);
            res_sign : in STD_LOGIC;
            
+           op1_q : out STD_LOGIC_VECTOR(WIDTH-1 downto 0);
+           op2_q : out STD_LOGIC_VECTOR(WIDTH-1 downto 0);
+           
            operands_en : in STD_LOGIC;
            exp_reg_en : in STD_LOGIC;
            exp_val : out STD_LOGIC_VECTOR(WIDTH_EXP downto 0); --9bits wide
@@ -55,6 +58,8 @@ entity data_path_fp_mul is
            mres_sel : in STD_LOGIC;
            
            norm_block_en : in STD_LOGIC;
+           hidden_value_mux_y : out STD_LOGIC_VECTOR(1 downto 0);
+           hidden_value_mux_x1 : in STD_LOGIC_VECTOR(1 downto 0);
            
            mexp_sel : in STD_LOGIC;
            incr_decr_en : in STD_LOGIC;
@@ -91,7 +96,9 @@ architecture Structural of data_path_fp_mul is
     
 begin
 
-    
+    --ova dva signala su neophonda za ispravan rad FSMa, zbog liste osetljivosti
+    op1_q <= op1_s;
+    op2_q <= op2_s;
     
     
     op1_exp_s <= op1_s(WIDTH-2 downto WIDTH_FRACT);
@@ -159,7 +166,10 @@ begin
                  result => ba_result_s
         );
 
-    round_fract_res_s <= round_carry_s & "0" & round_fract_out_s & x"00000";
+    --round_fract_res_s <= round_carry_s & "0" & round_fract_out_s & x"00000";
+
+    round_fract_res_s <= hidden_value_mux_x1 & round_fract_out_s & x"00000";
+
 
     mux_norm_fract: entity work.mux2on1(Behavioral)
         generic map(WIDTH => WIDTH_BA_RESULT) --48 bits
@@ -169,13 +179,16 @@ begin
                  y => norm_block_in_s
         );
 
+    hidden_value_mux_y <= norm_block_in_s(WIDTH_BA_RESULT-1 downto WIDTH_BA_RESULT-2);
     
     norm_block : entity work.fp_mul_norm_block(Behavioral)
         generic map(WIDTH => WIDTH_BA_RESULT, --48bits
                     WIDTH_FRACT => WIDTH_FRACT,
                     WIDTH_GRS => WIDTH_GRS
         )
-        port map(en => norm_block_en,
+        port map(rst => rst,
+                 clk => clk,
+                 en => norm_block_en,
                  fract_in => norm_block_in_s,
                  fract_out => norm_block_res_s
         );

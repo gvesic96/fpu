@@ -51,7 +51,26 @@ entity control_path_fp_mul is
            exp_reg_en : out STD_LOGIC;
            
            ba_en : out STD_LOGIC;
+           ba_start : out STD_LOGIC;
+           ba_rdy : in STD_LOGIC;
+           hidden_value_in : in STD_LOGIC_VECTOR(1 downto 0);
+           hidden_value_out : out STD_LOGIC_VECTOR(1 downto 0);
            
+           mres_sel : out STD_LOGIC;
+           
+           norm_block_en : out STD_LOGIC;
+           --norm_block_load : out STD_LOGIC;
+           
+           incr_decr_en : out STD_LOGIC;
+           incr_decr_ctrl : out STD_LOGIC_VECTOR(1 downto 0);
+           
+           round_en : out STD_LOGIC;
+           round_rdy : in STD_LOGIC;
+           round_carry : in STD_LOGIC;
+           
+           output_reg_en : out STD_LOGIC;
+           
+           res_sign : out STD_LOGIC;
            
            fflags : out STD_LOGIC_VECTOR(4 downto 0);
            rdy : out STD_LOGIC
@@ -72,6 +91,7 @@ architecture Behavioral of control_path_fp_mul is
     signal input_comb_s, input_comb_next : STD_LOGIC_VECTOR(1 downto 0);
     signal exp255_flag_s, exp255_flag_next : STD_LOGIC;
     signal ba_work_flag_s, ba_work_flag_next : STD_LOGIC;
+    signal hidden_value_s, hidden_value_next : STD_LOGIC_VECTOR(1 downto 0);
     
     signal nv_flag_s, nv_flag_next : STD_LOGIC; --fflags(4)
     signal dz_flag_s, dz_flag_next : STD_LOGIC; --fflags(3)
@@ -81,6 +101,8 @@ architecture Behavioral of control_path_fp_mul is
 
 begin
 
+
+    res_sign <= res_sign_s;
 
     op1_sign_s <= op1(WIDTH-1);
     op1_exp_s <=  op1(WIDTH-2 downto WIDTH_FRACT);
@@ -99,6 +121,7 @@ begin
           input_comb_s <= "11";
           exp255_flag_s <= '0';
           ba_work_flag_s <= '0';
+          hidden_value_s <= "00";
         else
           if(clk'event and clk='1') then
             state_reg <= state_next;
@@ -106,6 +129,7 @@ begin
             input_comb_s <= input_comb_next;
             exp255_flag_s <= exp255_flag_next;
             ba_work_flag_s <= ba_work_flag_next;
+            hidden_value_s <= hidden_value_next;
           end if;
         
         end if;
@@ -115,7 +139,7 @@ begin
 
 
 
-    control_proc: process(state_reg, op1, op2, input_comb_s, exp_val, exp255_flag_s, ba_work_flag_s) is
+    control_proc: process(state_reg, op1, op2, input_comb_s, exp_val, exp255_flag_s, ba_work_flag_s, hidden_value_s, round_rdy, round_carry) is
     begin
         
         operands_en <= '0';
@@ -124,7 +148,10 @@ begin
         input_comb_next <= input_comb_s;
         exp255_flag_next <= exp255_flag_s;
         ba_en <= '0';
+        ba_start <= '0';
         ba_work_flag_next <= ba_work_flag_s;
+        mres_sel <= '0';
+        hidden_value_next <= hidden_value_s;
         
         nv_flag_next <= nv_flag_s;    
         
@@ -152,6 +179,8 @@ begin
             else
               res_sign_next <= '1';
             end if;
+        
+            state_next <= NORM;
         
             if(unsigned(op1_exp_s)=0 and unsigned(op2_exp_s)=0) then
               input_comb_next <= "00";
@@ -237,11 +266,14 @@ begin
               if(input_comb_s="11") then
                 if(unsigned(exp_val)>254) then
                   --state_next <= RESULT_INF;
+                  state_next <= NORM; --predji u NORM stanje i tamo postavi vrednost incr_decr_en=0 da bi dobio sve jedinice u eksponentu?
+                  input_comb_next <= "10";
                   of_flag_next <= '1';
                   nx_flag_next <= '1';
                 else
                   ba_start <= '1';
                   ba_work_flag_next <= '1';
+                  incr_decr_ctrl <= "11"; --load value into incr_decr_block
                   state_next <= MUL;
                 end if;
               end if;
@@ -250,26 +282,77 @@ begin
               if(ba_rdy='0') then
                 state_next <= MUL;
               else
-                ba_work_flag_next <= '1';
+                ba_work_flag_next <= '0';
                 state_next <= NORM;
+                hidden_value_next <= hidden_value_in;
+                --norm_block_en <= '1';
+                --norm_block_load <= '1';
               end if;
             end if;
             
-          --*************************************** MUL ******************************************
+          --*************************************** NORM ******************************************
           when NORM =>
-        
-        
-        
+            case input_comb_s is
+              when "11" =>
+                --result in normalized range
+                norm_block_en <= '1';
+                --norm_block_load <= '1';
+                state_next <= ROUND;
+                --uvuci dva najstarija bita u FSM od ulaza u NORM_BLOCK i onda na osnovu toga kontrolisati incr_decr_block povecati za 1 ili zadrzati
+                if(hidden_value_s="10") then
+                  if(unsigned(exp_val)=254) then
+                    input_comb_next <= "10"; --inf combination
+                    state_next <= NORM;
+                    incr_decr_ctrl <= "01";
+                  else
+                    incr_decr_ctrl <= "01"; --increment exponent
+                  end if;
+                  hidden_value_next <= "01";
+                else
+                  incr_decr_ctrl <= "00"; --hold exponent value unchanged
+                end if;
+              when "01" =>
+                --result qNaN
+                incr_decr_en <= '0'; --set exponent to all ones
+                --dodati kreiranje jedinice kao MSB-a izmenama u NORM_BLOCKU i generisanjem 2 najstarija bita za mres_sel=1 ulaz iz FSMa
+                hidden_value_out <= "11";
+                mres_sel <= '1';
+              when "10" =>
+                --result inf
+                incr_decr_en <= '0'; --set exponent to all ones
+                hidden_value_out <= "10";
+                mres_sel <= '1';
+              when others =>
+                --result zero
+                round_en <= '0';
+                output_reg_en <= '1';
+                state_next <= READY;
+            end case;
+            
+          --*************************************** ROUND ******************************************
+          when ROUND => 
+            round_en <= '1';
+            if(round_rdy='1') then
+              if(round_carry='1') then
+                hidden_value_next <= "10";
+                state_next <= NORM;
+              else
+                output_reg_en <= '1';
+                state_next <= READY;
+              end if;
+            end if;
+            
+          --*************************************** READY ******************************************
+          when READY =>
+            rdy <= '1';
+            state_next <= IDLE;
+          
+          
+          when others =>
+            state_next <= IDLE;
         
         end case;
     end process control_proc;
-
-
-
-
-
-
-
 
 
 
