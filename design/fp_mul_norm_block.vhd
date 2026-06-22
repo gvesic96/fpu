@@ -59,7 +59,9 @@ begin
     norm_process : process (en, fract_in) is
         begin
           if(en = '1') then
-            if(fract_in(WIDTH-1 downto WIDTH-2)="10") then
+            if(fract_in(WIDTH-1 downto WIDTH-2)="10" or fract_in(WIDTH-1 downto WIDTH-2)="11") then
+                --kombinacija dva najvisa bita ulazne prosirene frakcije od 48 bita koja je 11 je vazna za ispravno generisanje qNaN-a
+                --kombinacija dva najvisa bita 10 se moze koristiti i za generisanje beskonacne vrednosti
               --sticky_s <= or fract_in(21 downto 0);
               sticky_s <= fract_in(21) or fract_in(20) or fract_in(19) or fract_in(18) or fract_in(17) or fract_in(16) or fract_in(15) or fract_in(14) or fract_in(13) or fract_in(12) or fract_in(11) or fract_in(10) or fract_in(9) or fract_in(8) or fract_in(7) or fract_in(6) or fract_in(5) or fract_in(4) or fract_in(3) or fract_in(2) or fract_in(1) or fract_in(0);
               fract_in_s <= fract_in(WIDTH-2 downto 24);
@@ -80,14 +82,16 @@ begin
           end if;
         end process norm_process;
 
-
+    --mozda dodati enable signal onaj odozgo tako da zapamti vrednost samo kada je en=1 ? na taj nacin mi ne treba load_en
     d_reg: process (rst, clk) is
         begin
           if(rst='1') then
             fract_out_s <= (others=>'0');
           else
             if(rising_edge(clk)) then
-              fract_out_s <= fract_in_s & guard_s & round_s & sticky_s;
+              if(en='1') then
+                fract_out_s <= fract_in_s & guard_s & round_s & sticky_s;
+              end if;
             end if;
           end if;
         end process d_reg;
