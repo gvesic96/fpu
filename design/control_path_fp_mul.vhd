@@ -61,6 +61,7 @@ entity control_path_fp_mul is
            norm_block_en : out STD_LOGIC;
            --norm_block_load : out STD_LOGIC;
            
+           mexp_sel : out STD_LOGIC;
            incr_decr_en : out STD_LOGIC;
            incr_decr_ctrl : out STD_LOGIC_VECTOR(1 downto 0);
            
@@ -139,7 +140,8 @@ begin
 
 
 
-    control_proc: process(state_reg, op1, op2, input_comb_s, exp_val, exp255_flag_s, ba_work_flag_s, hidden_value_s, round_rdy, round_carry) is
+    control_proc: process(start, state_reg, op1_sign_s, op1_fract_s, op1_exp_s, op2_sign_s, op2_fract_s, 
+                          op2_exp_s, input_comb_s, exp_val, exp255_flag_s, ba_work_flag_s, hidden_value_s, round_rdy, round_carry, ba_rdy) is
     begin
         
         operands_en <= '0';
@@ -147,11 +149,21 @@ begin
         res_sign_next <= res_sign_s;
         input_comb_next <= input_comb_s;
         exp255_flag_next <= exp255_flag_s;
+        
+        mexp_sel <= '0';
+        
         ba_en <= '0';
         ba_start <= '0';
         ba_work_flag_next <= ba_work_flag_s;
         mres_sel <= '0';
+        
+        norm_block_en <= '0';
+        
         hidden_value_next <= hidden_value_s;
+        rdy <= '0';
+        incr_decr_en <= '1';
+        incr_decr_ctrl <= "00";
+        
         
         nv_flag_next <= nv_flag_s;    
         
@@ -285,7 +297,7 @@ begin
                 ba_work_flag_next <= '0';
                 state_next <= NORM;
                 hidden_value_next <= hidden_value_in;
-                --norm_block_en <= '1';
+                norm_block_en <= '1';
                 --norm_block_load <= '1';
               end if;
             end if;
@@ -295,7 +307,7 @@ begin
             case input_comb_s is
               when "11" =>
                 --result in normalized range
-                norm_block_en <= '1';
+                --norm_block_en <= '1';
                 --norm_block_load <= '1';
                 state_next <= ROUND;
                 --uvuci dva najstarija bita u FSM od ulaza u NORM_BLOCK i onda na osnovu toga kontrolisati incr_decr_block povecati za 1 ili zadrzati
@@ -317,10 +329,12 @@ begin
                 --dodati kreiranje jedinice kao MSB-a izmenama u NORM_BLOCKU i generisanjem 2 najstarija bita za mres_sel=1 ulaz iz FSMa
                 hidden_value_out <= "11";
                 mres_sel <= '1';
+                norm_block_en <= '1';
               when "10" =>
                 --result inf
                 incr_decr_en <= '0'; --set exponent to all ones
                 hidden_value_out <= "10";
+                norm_block_en <= '1';
                 mres_sel <= '1';
               when others =>
                 --result zero
