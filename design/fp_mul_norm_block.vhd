@@ -56,9 +56,9 @@ architecture Behavioral of fp_mul_norm_block is
     
 begin
 
-    norm_process : process (en, fract_in) is
+    norm_process : process ( fract_in) is
         begin
-          if(en = '1') then
+          --if(en = '1') then
             if(fract_in(WIDTH-1 downto WIDTH-2)="10" or fract_in(WIDTH-1 downto WIDTH-2)="11") then
                 --kombinacija dva najvisa bita ulazne prosirene frakcije od 48 bita koja je 11 je vazna za ispravno generisanje qNaN-a
                 --kombinacija dva najvisa bita 10 se moze koristiti i za generisanje beskonacne vrednosti
@@ -74,12 +74,12 @@ begin
               guard_s <= fract_in(22);
               round_s <= fract_in(21);
             end if;
-          else
-            fract_in_s <= (others=>'0');  
-            guard_s <= '0';
-            round_s <= '0';
-            sticky_s <= '0';
-          end if;
+          --else
+          --  fract_in_s <= (others=>'0');  
+          --  guard_s <= '0';
+          --  round_s <= '0';
+          --  sticky_s <= '0';
+          --end if;
         end process norm_process;
 
     --mozda dodati enable signal onaj odozgo tako da zapamti vrednost samo kada je en=1 ? na taj nacin mi ne treba load_en

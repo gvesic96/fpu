@@ -53,12 +53,12 @@ architecture Structural of fp_mul is
 
 
     --signals from control_path to data_path
-    signal sa_sel_s, exp_reg_en_s : STD_LOGIC;
+    signal sa_sel_s, exp_reg_en_s, operands_en_s : STD_LOGIC;
     signal ba_en_s, ba_start_s, ba_rdy_s : STD_LOGIC;
     signal hidden_value_mux_x1_s : STD_LOGIC_VECTOR(1 downto 0);
     signal mres_sel_s : STD_LOGIC;
     signal norm_block_en_s : STD_LOGIC;
-    signal incr_decr_en_s : STD_LOGIC;
+    signal incr_decr_en_s, mexp_sel_s : STD_LOGIC;
     signal incr_decr_ctrl_s : STD_LOGIC_VECTOR(1 downto 0);
     signal round_en_s : STD_LOGIC;
     signal output_reg_en_s : STD_LOGIC;
@@ -85,6 +85,7 @@ begin
                  op1 => op1_s,
                  op2 => op2_s,
                  
+                 operands_en => operands_en_s,
                  sa_sel => sa_sel_s,
                  
                  exp_val => exp_val_s,
@@ -99,6 +100,7 @@ begin
                  mres_sel => mres_sel_s,
                  norm_block_en => norm_block_en_s,
                  
+                 mexp_sel => mexp_sel_s,
                  incr_decr_en => incr_decr_en_s,
                  incr_decr_ctrl => incr_decr_ctrl_s,
                  
