@@ -95,10 +95,14 @@ begin
         multiplicand_ctrl <= "00";
         multiplier_ctrl <= "00";
         count_s_next <= count_s;
+        rdy <= '0';
     
         case state_reg is
           when IDLE =>
-            rdy <= '0';
+            --set value in product register to 0
+            product_en <= '1';
+            ba_alu_en <= '0'; 
+            
             count_s_next <= (others => '0');
             if(ba_start='1') then
               multiplicand_ctrl <= "11";  --load
@@ -129,17 +133,11 @@ begin
             end if;
             
         when READY =>
-          rdy <= '1';
-          --set value in product register to 0
-          product_en <= '1';
-          ba_alu_en <= '0';    
+          rdy <= '1';   
           state_next <= IDLE;  
             
         when others =>
-          state_next <= IDLE;    
-          --set value in product register to 0
-          product_en <= '1';
-          ba_alu_en <= '0';  
+          state_next <= IDLE;  
             
         end case;
     
