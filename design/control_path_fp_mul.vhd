@@ -297,7 +297,7 @@ begin
                 ba_work_flag_next <= '0';
                 state_next <= NORM;
                 hidden_value_next <= hidden_value_in;
-                norm_block_en <= '1';
+                --norm_block_en <= '1';
                 --norm_block_load <= '1';
               end if;
             end if;
@@ -307,7 +307,7 @@ begin
             case input_comb_s is
               when "11" =>
                 --result in normalized range
-                --norm_block_en <= '1';
+                norm_block_en <= '1';
                 --norm_block_load <= '1';
                 state_next <= ROUND;
                 --uvuci dva najstarija bita u FSM od ulaza u NORM_BLOCK i onda na osnovu toga kontrolisati incr_decr_block povecati za 1 ili zadrzati
