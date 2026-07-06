@@ -107,6 +107,7 @@ begin
                  round_en => round_en_s,
                  round_rdy => round_rdy_s,
                  round_carry => round_carry_s,
+                 nx_flag_in => nx_flag_s,
                  
                  output_reg_en => output_reg_en_s,
                  

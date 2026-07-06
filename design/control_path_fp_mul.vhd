@@ -68,6 +68,7 @@ entity control_path_fp_mul is
            round_en : out STD_LOGIC;
            round_rdy : in STD_LOGIC;
            round_carry : in STD_LOGIC;
+           nx_flag_in : in STD_LOGIC;
            
            output_reg_en : out STD_LOGIC;
            
@@ -113,6 +114,7 @@ begin
     op2_exp_s <=  op2(WIDTH-2 downto WIDTH_FRACT);
     op2_fract_s <= op2(WIDTH_FRACT-1 downto 0);
 
+    fflags <= nv_flag_s & dz_flag_s & of_flag_s & uf_flag_s & nx_flag_s;
 
     state_proc: process(clk,rst) is
     begin
@@ -123,6 +125,12 @@ begin
           exp255_flag_s <= '0';
           ba_work_flag_s <= '0';
           hidden_value_s <= "00";
+          
+          nv_flag_s <= '0';
+          dz_flag_s <= '0';
+          of_flag_s <= '0';
+          uf_flag_s <= '0';
+          nx_flag_s <= '0';
         else
           if(clk'event and clk='1') then
             state_reg <= state_next;
@@ -131,6 +139,12 @@ begin
             exp255_flag_s <= exp255_flag_next;
             ba_work_flag_s <= ba_work_flag_next;
             hidden_value_s <= hidden_value_next;
+            
+            nv_flag_s <= nv_flag_next;
+            dz_flag_s <= dz_flag_next;
+            of_flag_s <= of_flag_next;
+            uf_flag_s <= uf_flag_next;
+            nx_flag_s <= nx_flag_next;
           end if;
         
         end if;
@@ -141,7 +155,7 @@ begin
 
 
     control_proc: process(start, state_reg, op1_sign_s, op1_fract_s, op1_exp_s, op2_sign_s, op2_fract_s, 
-                          op2_exp_s, input_comb_s, exp_val, exp255_flag_s, ba_work_flag_s, hidden_value_s, round_rdy, round_carry, ba_rdy) is
+                          op2_exp_s, input_comb_s, exp_val, exp255_flag_s, ba_work_flag_s, hidden_value_s, round_rdy, round_carry, ba_rdy, nx_flag_in) is
     begin
         
         operands_en <= '0';
@@ -166,12 +180,22 @@ begin
         
         
         nv_flag_next <= nv_flag_s;    
+        dz_flag_next <= dz_flag_s;
+        of_flag_next <= of_flag_s;
+        uf_flag_next <= uf_flag_s;
+        nx_flag_next <= nx_flag_s;
+        
         
         case state_reg is
           
           --************************************** IDLE **********************************************
           when IDLE =>
             ba_work_flag_next <= '0';
+            nv_flag_next <= '0';    
+            dz_flag_next <= '0';
+            of_flag_next <= '0';
+            uf_flag_next <= '0';
+            nx_flag_next <= '0';
             if(start='1') then
               state_next <= INPUT_CHECK;
               operands_en <= '1';
@@ -181,7 +205,7 @@ begin
           
           --************************************** INPUT_CHECK ***************************************
           when INPUT_CHECK =>
-            --ispitati ulaze i odrediti znak i eventualno preci u stanja
+            --ispitati ulaze i odrediti znak i input_comb promenljivu koja odlucuje kakav ce biti rezultat
             sa_sel <= '0';
             exp_reg_en <= '1';
             
@@ -192,6 +216,7 @@ begin
               res_sign_next <= '1';
             end if;
         
+            --prelazi u stanje nnorm podrazumevano ukoliko nema racunanja, rezultat = zero, inf, qNaN
             state_next <= NORM;
         
             if(unsigned(op1_exp_s)=0 and unsigned(op2_exp_s)=0) then
@@ -330,12 +355,15 @@ begin
                 hidden_value_out <= "11";
                 mres_sel <= '1';
                 norm_block_en <= '1';
+                res_sign_next <= '0';
+                state_next <= ROUND;
               when "10" =>
                 --result inf
                 incr_decr_en <= '0'; --set exponent to all ones
                 hidden_value_out <= "10";
                 norm_block_en <= '1';
                 mres_sel <= '1';
+                state_next <= ROUND;
               when others =>
                 --result zero
                 round_en <= '0';
@@ -346,6 +374,7 @@ begin
           --*************************************** ROUND ******************************************
           when ROUND => 
             round_en <= '1';
+            nx_flag_next <= nx_flag_s or nx_flag_in;
             if(round_rdy='1') then
               if(round_carry='1') then
                 hidden_value_next <= "10";
